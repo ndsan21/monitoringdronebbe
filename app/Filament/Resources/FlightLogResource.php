@@ -30,38 +30,42 @@ class FlightLogResource extends Resource
                 Forms\Components\Section::make('Flight Identity')
                     ->columnSpan(1)
                     ->schema([
-                        Forms\Components\Select::make('pilot_id')->relationship('pilot', 'full_name')->searchable()->required(),
+                        Forms\Components\Select::make('pilot_id')
+                            ->relationship('pilot', 'full_name')
+                            ->label('Pilot')
+                            ->default(fn () => auth()->id())
+                            ->disabled()
+                            ->dehydrated()
+                            ->required(),
+
                         Forms\Components\Select::make('co_pilot_id')->relationship('coPilot', 'full_name')->searchable()->required(),
                         Forms\Components\Select::make('drone_id')->relationship('drone', 'model')->required(),
                         
-                        // Fitur Otomatis Mengetahui Lokasi Baru & Masuk ke Master Data (On-The-Fly)
-                        Forms\Components\Select::make('flight_location_id')
-                            ->relationship('flightLocation', 'location_name')
-                            ->searchable()
-                            ->preload()
+                        Forms\Components\TextInput::make('location_name_bridge')
+                            ->label('Flight Location')
+                            ->placeholder('Ketik lokasi... (Otomatis tersimpan jika baru)')
+                            ->datalist(fn () => \App\Models\FlightLocation::query()
+                                ->whereNotNull('location_name')
+                                ->where('location_name', '!=', '')
+                                ->distinct()
+                                ->pluck('location_name')
+                                ->toArray()
+                            )
                             ->required()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('location_name')
-                                    ->label('Location Name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('iup_number')
-                                    ->label('IUP (Company License)')
-                                    ->maxLength(255),
-                                Forms\Components\Select::make('company_id')
-                                    ->relationship('company', 'name')
-                                    ->label('Company Parent')
-                                    ->required(),
-                            ])
-                            ->createOptionUsing(function (array $data): int {
-                                return \App\Models\FlightLocation::create($data)->id;
+                            ->formatStateUsing(fn ($record) => $record?->flightLocation?->location_name)
+                            ->dehydrateStateUsing(function ($state, Set $set) {
+                                if (!empty($state)) {
+                                    $location = \App\Models\FlightLocation::firstOrCreate([
+                                        'location_name' => $state,
+                                    ], [
+                                        'company_id' => \App\Models\Company::first()?->id ?? 1,
+                                    ]);
+                                    $set('flight_location_id', $location->id);
+                                }
+                                return null;
                             }),
-
-                        // Kolom Cadangan Jika User Ingin Mengisi Opsi Lain Diluar Pilihan Master Data
-                        Forms\Components\TextInput::make('flight_area_name')
-                            ->label('Flight Area (Custom Name / Other Option)')
-                            ->required()
-                            ->maxLength(255),
+                        
+                        Forms\Components\Hidden::make('flight_location_id'),
 
                         Forms\Components\Select::make('purpose')
                             ->options([
@@ -107,10 +111,7 @@ class FlightLogResource extends Resource
                                 $seconds = (int) ($get('duration') ?? 0);
                                 
                                 if ($seconds <= 0) return '0 seconds';
-
-                                if ($seconds < 60) {
-                                    return "{$seconds} seconds";
-                                }
+                                if ($seconds < 60) return "{$seconds} seconds";
 
                                 if ($seconds < 3600) {
                                     $minutes = floor($seconds / 60);
@@ -120,7 +121,6 @@ class FlightLogResource extends Resource
 
                                 $hours = floor($seconds / 3600);
                                 $minutes = floor(($seconds % 3600) / 60);
-                                
                                 $hourText = $hours > 1 ? 'hours' : 'hour';
                                 $minText = $minutes > 1 ? 'minutes' : 'minute';
                                 
@@ -167,7 +167,6 @@ class FlightLogResource extends Resource
                                                             \$wire.set('data.sky_condition', desc.toUpperCase());
                                                         }
                                                         
-                                                        // Menggunakan Custom Event Handler Filament v3 Native
                                                         new FilamentNotification().title('Maps & Weather Synced!').success().send();
                                                     }
                                                 } catch (e) { console.error(e); }
@@ -192,7 +191,7 @@ class FlightLogResource extends Resource
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\TextInput::make('sky_condition')->label('Sky Condition')->required(),
                         Forms\Components\CheckboxList::make('visual_condition')
-                            ->label('Visual Condition')
+                            ->label('Actual Visual Condition')
                             ->options(['sunny' => 'Sunny', 'cloudy' => 'Cloudy', 'overcast' => 'Overcast', 'windy' => 'Windy'])
                             ->columns(2)->required(),
                     ]),
@@ -229,7 +228,53 @@ class FlightLogResource extends Resource
                     ]),
                 ]),
 
-            // --- 4. FLIGHT EVIDENCE GALLERY ---
+            // --- 4. POST-FLIGHT CHECKLIST ---
+            // KUSTOMISASI: Ditambahkan ->collapsed() agar otomatis tertutup saat form pertama kali dibuka
+            Forms\Components\Section::make('Post-Flight Checklist')
+                ->collapsible()
+                ->collapsed() 
+                ->schema([
+                    Forms\Components\Fieldset::make('A. Post-Flight Inspection')
+                        ->schema([
+                            Forms\Components\Grid::make(3)->schema([
+                                Forms\Components\Toggle::make('is_motor_ok')
+                                    ->label('1. Motors is OK')
+                                    ->default(true)
+                                    ->onColor('success'),
+                                    
+                                Forms\Components\Toggle::make('is_propeller_ok')
+                                    ->label('2. Propellers is OK')
+                                    ->default(true)
+                                    ->onColor('success'),
+                                    
+                                Forms\Components\Toggle::make('is_airframe_ok')
+                                    ->label('3. Airframe is OK')
+                                    ->default(true)
+                                    ->onColor('success'),
+                            ]),
+                            Forms\Components\Grid::make(2)->schema([
+                                // KUSTOMISASI: ->required() dihapus (opsional / tidak wajib diisi)
+                                Forms\Components\TextInput::make('rc_battery_finish')
+                                    ->label('4. Remaining RC Batt (%)')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->suffix('%')
+                                    ->placeholder('Input sisa baterai remote controller'),
+
+                                // KUSTOMISASI: ->required() dihapus (opsional / tidak wajib diisi)
+                                Forms\Components\TextInput::make('drone_battery_finish')
+                                    ->label('5. Remaining Drone Batt (%)')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->suffix('%')
+                                    ->placeholder('Input sisa baterai drone'),
+                            ]),
+                        ]),
+                ]),
+
+            // --- 5. FLIGHT EVIDENCE GALLERY ---
             Forms\Components\Section::make('Flight Evidence (Gallery / Camera)')
                 ->schema([
                     Forms\Components\FileUpload::make('flight_evidences')
@@ -240,9 +285,9 @@ class FlightLogResource extends Resource
                         ->columnSpanFull()
                 ]),
 
-            // --- 5. BOTTOM ACTIONS ---
+            // --- 6. BOTTOM ACTIONS ---
+            // KUSTOMISASI: ->fullWidth() dihapus agar kedua tombol sejajar horizontal (inline side-by-side)
             Forms\Components\Actions::make([
-                // Tombol Sinkronisasi Manual
                 Action::make('update_location_manual')
                     ->label('Update Lokasi & Cuaca')
                     ->icon('heroicon-m-map-pin')
@@ -273,14 +318,13 @@ class FlightLogResource extends Resource
                                             \$wire.set('data.sky_condition', w.weather[0].description.toUpperCase());
                                         }
                                         
-                                        new FilamentNotification().title('Data Successfully Updated!').success().send();
+                                        new FilamentNotification().title('Data Successfully Updated!')->success().send();
                                     }
                                 } catch (e) { console.error(e); }
                             ]);
                         "
                     ]),
 
-                // Tombol Tunggal Stopwatch Interaktif (Start Flight -> Stop Flight -> Reset)
                 Action::make('flight_timer')
                     ->label(fn (Get $get) => empty($get('takeoff_time')) ? 'Start Flight' : (empty($get('landing_time')) ? 'Stop Flight' : 'Reset Timer'))
                     ->icon(fn (Get $get) => empty($get('takeoff_time')) ? 'heroicon-m-play' : (empty($get('landing_time')) ? 'heroicon-m-stop' : 'heroicon-m-arrow-path'))
@@ -299,7 +343,7 @@ class FlightLogResource extends Resource
                             Notification::make()->title('Timer Reset')->info()->send();
                         }
                     }),
-            ])->fullWidth(),
+            ]),
         ]);
     }
 
@@ -317,19 +361,53 @@ class FlightLogResource extends Resource
     }
 
     public static function table(Table $table): Table {
-        return $table->columns([
-            Tables\Columns\TextColumn::make('date')->date()->sortable(),
-            Tables\Columns\TextColumn::make('pilot.full_name')->searchable(),
-            Tables\Columns\BadgeColumn::make('result')->colors(['success' => 'safe_to_fly', 'warning' => 'postpone', 'danger' => 'cancel']),
-        ])->actions([
-            Tables\Actions\Action::make('downloadPdf')
-                ->label('Berita Acara')
-                ->icon('heroicon-o-document-arrow-down')
-                ->color('info')
-                ->url(fn ($record) => route('export.flight.pdf', ['id' => $record->id]))
-                ->openUrlInNewTab(),
-            Tables\Actions\EditAction::make()
-        ]);
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('date')->date()->sortable(),
+                Tables\Columns\TextColumn::make('pilot.full_name')->searchable(),
+                Tables\Columns\BadgeColumn::make('result')->colors(['success' => 'safe_to_fly', 'warning' => 'postpone', 'danger' => 'cancel']),
+            ])
+            ->actions([
+                Tables\Actions\ViewAction::make('clickToView')
+                    ->modalActions([
+                        Tables\Actions\EditAction::make()
+                            ->button()
+                            ->color('warning'),
+                    ])
+                    ->extraAttributes(['class' => 'hidden']),
+
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->color('info')
+                        ->icon('heroicon-m-eye')
+                        ->modalActions([
+                            Tables\Actions\EditAction::make()
+                                ->button()
+                                ->color('warning'),
+                        ]),
+                    
+                    Tables\Actions\Action::make('downloadPdf')
+                        ->label('Berita Acara')
+                        ->icon('heroicon-o-document-arrow-down')
+                        ->color('info')
+                        ->url(fn ($record) => route('export.flight.pdf', ['id' => $record->id]))
+                        ->openUrlInNewTab(),
+
+                    Tables\Actions\EditAction::make()
+                        ->color('warning'),
+                        
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->recordUrl(null)
+            ->recordAction('clickToView');
     }
 
     public static function getPages(): array {
