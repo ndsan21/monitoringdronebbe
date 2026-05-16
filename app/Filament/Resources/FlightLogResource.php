@@ -20,6 +20,7 @@ class FlightLogResource extends Resource
 {
     protected static ?string $model = FlightLog::class;
     protected static ?string $navigationIcon = 'heroicon-o-paper-airplane';
+    protected static ?string $navigationGroup = 'Log Operasional';
 
     public static function form(Form $form): Form
     {
@@ -32,9 +33,49 @@ class FlightLogResource extends Resource
                         Forms\Components\Select::make('pilot_id')->relationship('pilot', 'full_name')->searchable()->required(),
                         Forms\Components\Select::make('co_pilot_id')->relationship('coPilot', 'full_name')->searchable()->required(),
                         Forms\Components\Select::make('drone_id')->relationship('drone', 'model')->required(),
-                        Forms\Components\Select::make('flight_location_id')->relationship('flightLocation', 'name')->required(),
-                        Forms\Components\Select::make('purpose')->options(['patrol' => 'Patroli', 'mapping' => 'Mapping', 'documentation' => 'Dokumentasi'])->required(),
-                        Forms\Components\Select::make('flight_mode')->options(['auto' => 'Auto', 'tc' => 'T/C', 'pn' => 'P/N', 'sa' => 'S/A'])->required(),
+                        
+                        // Fitur Otomatis Mengetahui Lokasi Baru & Masuk ke Master Data (On-The-Fly)
+                        Forms\Components\Select::make('flight_location_id')
+                            ->relationship('flightLocation', 'location_name')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('location_name')
+                                    ->label('Location Name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('iup_number')
+                                    ->label('IUP (Company License)')
+                                    ->maxLength(255),
+                                Forms\Components\Select::make('company_id')
+                                    ->relationship('company', 'name')
+                                    ->label('Company Parent')
+                                    ->required(),
+                            ])
+                            ->createOptionUsing(function (array $data): int {
+                                return \App\Models\FlightLocation::create($data)->id;
+                            }),
+
+                        // Kolom Cadangan Jika User Ingin Mengisi Opsi Lain Diluar Pilihan Master Data
+                        Forms\Components\TextInput::make('flight_area_name')
+                            ->label('Flight Area (Custom Name / Other Option)')
+                            ->required()
+                            ->maxLength(255),
+
+                        Forms\Components\Select::make('purpose')
+                            ->options([
+                                'patrol' => 'Update Pekerjaan / Patroli',
+                                'documentation' => 'Dokumentasi Acara',
+                                'mapping' => 'Orthophoto / Pemetaan'
+                            ])->required(),
+                        Forms\Components\Select::make('flight_mode')
+                            ->options([
+                                'auto' => 'Auto',
+                                'tc' => 'T/C (Tripod/Cinema)',
+                                'pn' => 'P/N (Positioning/Normal)',
+                                'sa' => 'S/A (Sport/Attitude)'
+                            ])->required(),
                     ]),
 
                 Forms\Components\Section::make('Time & Coordinates')
@@ -45,7 +86,7 @@ class FlightLogResource extends Resource
                         Forms\Components\Grid::make(2)->schema([
                             Forms\Components\TimePicker::make('takeoff_time')
                                 ->label('Take-off Time')
-                                ->seconds() // Aktifkan akurasi detik untuk stopwatch
+                                ->seconds()
                                 ->format('H:i:s')
                                 ->displayFormat('H:i:s')
                                 ->live()
@@ -67,7 +108,6 @@ class FlightLogResource extends Resource
                                 
                                 if ($seconds <= 0) return '0 seconds';
 
-                                // Logika Bahasa Inggris & Konversi Waktu (Detik, Menit, Jam)
                                 if ($seconds < 60) {
                                     return "{$seconds} seconds";
                                 }
@@ -102,11 +142,11 @@ class FlightLogResource extends Resource
                                                 \$wire.set('data.takeoff_lat', lat.toFixed(8));
                                                 \$wire.set('data.takeoff_lng', lng.toFixed(8));
                                                 try {
-                                                    const resAddr = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=\\${lat}&lon=\\${lng}`);
+                                                    const resAddr = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=\${lat}&lon=\${lng}`);
                                                     const addr = await resAddr.json();
                                                     if (addr.display_name) \$wire.set('data.address_detail', addr.display_name);
 
-                                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\\${lat}&lon=\\${lng}&appid=\${apiKey}&units=metric`);
+                                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lng}&appid=\${apiKey}&units=metric`);
                                                     const w = await resW.json();
                                                     if (w.main) {
                                                         \$wire.set('data.temp_c', w.main.temp);
@@ -127,7 +167,7 @@ class FlightLogResource extends Resource
                                                             \$wire.set('data.sky_condition', desc.toUpperCase());
                                                         }
                                                         
-                                                        // POP UP NOTIFIKASI OTOMATIS BERHASIL
+                                                        // Menggunakan Custom Event Handler Filament v3 Native
                                                         new FilamentNotification().title('Maps & Weather Synced!').success().send();
                                                     }
                                                 } catch (e) { console.error(e); }
@@ -189,7 +229,18 @@ class FlightLogResource extends Resource
                     ]),
                 ]),
 
-            // --- 4. BOTTOM ACTIONS ---
+            // --- 4. FLIGHT EVIDENCE GALLERY ---
+            Forms\Components\Section::make('Flight Evidence (Gallery / Camera)')
+                ->schema([
+                    Forms\Components\FileUpload::make('flight_evidences')
+                        ->label('Upload File / Capture Camera')
+                        ->multiple()
+                        ->image()
+                        ->directory('flight-evidences')
+                        ->columnSpanFull()
+                ]),
+
+            // --- 5. BOTTOM ACTIONS ---
             Forms\Components\Actions::make([
                 // Tombol Sinkronisasi Manual
                 Action::make('update_location_manual')
@@ -205,7 +256,7 @@ class FlightLogResource extends Resource
                                 \$wire.set('data.takeoff_lat', lat.toFixed(8));
                                 \$wire.set('data.takeoff_lng', lng.toFixed(8));
                                 try {
-                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\\${lat}&lon=\\${lng}&appid=\${apiKey}&units=metric`);
+                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lng}&appid=\${apiKey}&units=metric`);
                                     const w = await resW.json();
                                     if (w.main) {
                                         \$wire.set('data.temp_c', w.main.temp);
@@ -222,11 +273,10 @@ class FlightLogResource extends Resource
                                             \$wire.set('data.sky_condition', w.weather[0].description.toUpperCase());
                                         }
                                         
-                                        // POP UP NOTIFIKASI SINKRONISASI MANUAL SUKSES
                                         new FilamentNotification().title('Data Successfully Updated!').success().send();
                                     }
                                 } catch (e) { console.error(e); }
-                            });
+                            ]);
                         "
                     ]),
 
@@ -236,7 +286,7 @@ class FlightLogResource extends Resource
                     ->icon(fn (Get $get) => empty($get('takeoff_time')) ? 'heroicon-m-play' : (empty($get('landing_time')) ? 'heroicon-m-stop' : 'heroicon-m-arrow-path'))
                     ->color(fn (Get $get) => empty($get('takeoff_time')) ? 'info' : (empty($get('landing_time')) ? 'danger' : 'gray'))
                     ->action(function (Set $set, Get $get) {
-                        $now = now()->format('H:i:s'); // Mengikuti timezone lokal WITA yang di-set di config/app.php
+                        $now = now()->format('H:i:s'); 
                         if (empty($get('takeoff_time'))) {
                             $set('takeoff_time', $now);
                             Notification::make()->title('Flight Started!')->body("Take-off at $now WITA")->success()->send();
@@ -262,7 +312,6 @@ class FlightLogResource extends Resource
             $endTime = Carbon::parse($end);
             if ($endTime->lessThan($startTime)) $endTime->addDay();
             
-            // Simpan selisih dalam DETIK untuk penanganan durasi singkat di bawah 1 menit
             $set('duration', $startTime->diffInSeconds($endTime));
         }
     }
@@ -270,9 +319,17 @@ class FlightLogResource extends Resource
     public static function table(Table $table): Table {
         return $table->columns([
             Tables\Columns\TextColumn::make('date')->date()->sortable(),
-            Tables\Columns\TextColumn::make('pilot.full_name'),
+            Tables\Columns\TextColumn::make('pilot.full_name')->searchable(),
             Tables\Columns\BadgeColumn::make('result')->colors(['success' => 'safe_to_fly', 'warning' => 'postpone', 'danger' => 'cancel']),
-        ])->actions([Tables\Actions\EditAction::make()]);
+        ])->actions([
+            Tables\Actions\Action::make('downloadPdf')
+                ->label('Berita Acara')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('info')
+                ->url(fn ($record) => route('export.flight.pdf', ['id' => $record->id]))
+                ->openUrlInNewTab(),
+            Tables\Actions\EditAction::make()
+        ]);
     }
 
     public static function getPages(): array {
