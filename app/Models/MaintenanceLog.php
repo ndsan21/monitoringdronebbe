@@ -8,15 +8,51 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MaintenanceLog extends Model
 {
+    // Membuka gerbang fillable untuk semua field inputan baru di form
     protected $fillable = [
-        'asset_id', 'technician_id', 'maintenance_type', 'firmware_version_before',
-        'firmware_version_after', 'software_status', 'oos_damage_severity',
-        'oos_incident_date', 'oos_location', 'oos_chronology', 'technical_notes', 'photos_evidence'
+        'date',
+        'asset_id',
+        'technician_id',
+        'maintenance_type',
+        'maintenance_date',
+        'maintenance_status',
+        // Tambahkan field penampung checkbox baru
+        'software_app_checklist',
+        'sensors_calibration_checklist',
+        'technical_notes',
+        'photos_evidence'
     ];
 
-    protected $casts = ['photos_evidence' => 'array', 'oos_incident_date' => 'date'];
+    protected $casts = [
+        'photos_evidence' => 'array',
+        'date' => 'date',
+        'maintenance_date' => 'date',
+        // 🔥 WAJIB: Cast kedua field checkbox ini menjadi array PHP
+        'software_app_checklist' => 'array',
+        'sensors_calibration_checklist' => 'array',
+    ];
 
-    public function asset(): BelongsTo { return $this->belongsTo(Asset::class); }
-    public function technician(): BelongsTo { return $this->belongsTo(User::class, 'technician_id'); }
-    public function hardwareItems(): HasMany { return $this->hasMany(MaintenanceHardwareItem::class); }
+    /**
+     * Relasi ke Asset: Merujuk ke unit Drone utama yang sedang diservis
+     */
+    public function asset(): BelongsTo 
+    { 
+        return $this->belongsTo(Asset::class, 'asset_id'); 
+    }
+
+    /**
+     * Relasi ke User: Teknisi pembuat log
+     */
+    public function technician(): BelongsTo 
+    { 
+        return $this->belongsTo(User::class, 'technician_id'); 
+    }
+
+    /**
+     * Relasi ke Anak: Menampung daftar komponen item repeater yang dicek
+     */
+    public function hardwareItems(): HasMany 
+    { 
+        return $this->hasMany(MaintenanceHardwareItem::class, 'maintenance_log_id'); 
+    }
 }

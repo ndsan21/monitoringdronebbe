@@ -13,7 +13,7 @@ class DamageReportPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -21,7 +21,7 @@ class DamageReportPolicy
      */
     public function view(User $user, DamageReport $damageReport): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -29,7 +29,7 @@ class DamageReportPolicy
      */
     public function create(User $user): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -37,7 +37,7 @@ class DamageReportPolicy
      */
     public function update(User $user, DamageReport $damageReport): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -45,7 +45,7 @@ class DamageReportPolicy
      */
     public function delete(User $user, DamageReport $damageReport): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -53,7 +53,7 @@ class DamageReportPolicy
      */
     public function restore(User $user, DamageReport $damageReport): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -61,6 +61,6 @@ class DamageReportPolicy
      */
     public function forceDelete(User $user, DamageReport $damageReport): bool
     {
-        return false;
+        return true;
     }
 }

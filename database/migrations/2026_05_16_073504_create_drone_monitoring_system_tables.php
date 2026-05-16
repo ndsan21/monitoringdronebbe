@@ -148,29 +148,36 @@ return new class extends Migration {
         });
 
         // 7. MAINTENANCE LOGS
+        // 7. MAINTENANCE LOGS (STRUKTUR SINKRON CHECKBOX DIGITAL)
         Schema::create('maintenance_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('asset_id')->constrained('assets');
-            $table->foreignId('technician_id')->constrained('users');
+            $table->date('date');
+            $table->foreignId('asset_id')->constrained('assets')->cascadeOnDelete();
+            $table->foreignId('technician_id')->constrained('users')->cascadeOnDelete();
             $table->enum('maintenance_type', ['hardware_inspection', 'software_update', 'full_maintenance']);
-            $table->string('firmware_version_before')->nullable();
-            $table->string('firmware_version_after')->nullable();
-            $table->enum('software_status', ['stable', 'beta', 'issues_detected'])->nullable();
-            $table->enum('oos_damage_severity', ['minor', 'moderate', 'major'])->nullable();
-            $table->date('oos_incident_date')->nullable();
-            $table->string('oos_location')->nullable();
-            $table->text('oos_chronology')->nullable();
+            
+            $table->date('maintenance_date')->nullable();
+            $table->string('maintenance_status')->nullable();
+
+            // 🔥 UPDATE DATABASE: Ubah menjadi penampung Checklist JSON sesuai gambar Master
+            $table->json('software_app_checklist')->nullable();
+            $table->json('sensors_calibration_checklist')->nullable();
+            
             $table->text('technical_notes')->nullable();
             $table->json('photos_evidence')->nullable();
             $table->timestamps();
         });
 
-        // 8. MAINTENANCE HARDWARE ITEMS
+        
+        // 8. MAINTENANCE HARDWARE ITEMS (PERBAIKAN STRUKTUR RELASI ASSET)
         Schema::create('maintenance_hardware_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('maintenance_log_id')->constrained('maintenance_logs')->cascadeOnDelete();
-            $table->string('component_name');
-            $table->enum('current_status', ['reported', 'on_progress', 'resolved']);
+            
+            // AMAN: Mengubah string menjadi foreignId agar merujuk ke ID part asli di tabel assets
+            $table->foreignId('asset_id')->constrained('assets')->cascadeOnDelete(); 
+            
+            $table->enum('current_status', ['reported', 'on_progress', 'resolved'])->default('reported');
             $table->enum('condition', ['good', 'damaged_replace', 'out_of_service']);
             $table->foreignId('replaced_with_sparepart_id')->nullable()->constrained('assets')->nullOnDelete();
             $table->timestamps();

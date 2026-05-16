@@ -4,12 +4,13 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\DamageReportResource\Pages;
 use App\Models\DamageReport;
+use App\Models\Asset;
+use App\Models\FlightLocation;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms\Get;
 
 class DamageReportResource extends Resource
 {
@@ -17,110 +18,103 @@ class DamageReportResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationGroup = 'Log Operasional';
     protected static ?string $navigationLabel = 'Damage Reports';
+    protected static ?string $pluralLabel = 'Damage Reports';
+    protected static ?string $modelLabel = 'Damage Report';
+    protected static ?string $slug = 'damage-reports';
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            // --- SECTION 1: ASSET IDENTIFICATION ---
-            Forms\Components\Section::make('Asset Identification')->schema([
+            Forms\Components\Section::make('💥 Incident & Incident Target Information')->schema([
                 Forms\Components\Select::make('asset_id')
-                    ->relationship('asset', 'asset_name')
-                    ->label('Select Asset / Component')
+                    ->label('Target Asset (Drone/Part)')
+                    ->options(Asset::pluck('asset_name', 'id'))
                     ->searchable()
                     ->preload()
                     ->required(),
+
                 Forms\Components\Select::make('reported_by_id')
-                    ->relationship('reportedBy', 'full_name')
                     ->label('Reported By')
-                    ->default(auth()->id())
+                    ->relationship('reportedBy', 'name')
+                    ->default(fn() => auth()->id())
                     ->required(),
+
                 Forms\Components\DatePicker::make('report_date')
+                    ->label('Report Date')
                     ->default(now())
                     ->required(),
             ])->columns(3),
 
-            // --- SECTION 2: DAMAGE ANALYSIS ---
-            Forms\Components\Section::make('Damage Analysis')->schema([
-                Forms\Components\Select::make('damage_severity')
-                    ->options([
-                        'minor' => 'Minor Damage',
-                        'moderate' => 'Moderate Damage',
-                        'major' => 'Major / Critical Damage'
-                    ])->required(),
-                Forms\Components\DatePicker::make('incident_date')->required(),
-                Forms\Components\TimePicker::make('incident_time')->required(),
-                
-                // Menggunakan Opsi Add-on-the-fly yang sama dengan Flight Area pada FlightLog
-                Forms\Components\Select::make('incident_location_id')
-                    ->relationship('incidentLocation', 'location_name')
-                    ->label('Location of Incident (Flight Area)')
-                    ->searchable()
-                    ->preload()
-                    ->createOptionForm([
-                        Forms\Components\TextInput::make('location_name')->required(),
-                        Forms\Components\TextInput::make('iup_number')->label('IUP License'),
-                        Forms\Components\Select::make('company_id')->relationship('company', 'name')->required()
-                    ])
-                    ->required(),
-                
-                Forms\Components\Textarea::make('chronology')
-                    ->label('Incident Chronology & Details')
-                    ->columnSpanFull()
-                    ->required(),
-            ])->columns(2),
+            Forms\Components\Section::make('📋 Chronology & Severity Mapping')->schema([
+                Forms\Components\Grid::make(3)->schema([
+                    Forms\Components\Select::make('damage_severity')
+                        ->label('Damage Severity Level')
+                        ->options(['minor' => 'Minor', 'moderate' => 'Moderate', 'major' => 'Major Level'])
+                        ->required(),
 
-            // --- SECTION 3: STATUS & DOCUMENTATION ---
-            Forms\Components\Section::make('Status & Documentation Matrix').schema([
-                Forms\Components\Select::make('current_status')
-                    ->label('Current Status Laporan')
-                    ->options([
-                        'reported' => 'Reported',
-                        'on_progress' => 'On Progress',
-                        'resolved' => 'Resolved'
-                    ])->default('reported')->required(),
-                
-                // Kolom Sinkronisasi Jalan Tengah Menuju Status Master Asset via Eloquent Booted Model Hook
-                Forms\Components\Select::make('condition_status')
-                    ->label('Condition Target Matrix (Sync to Master Asset)')
-                    ->options([
-                        'good' => 'Good Condition (Asset Status -> Ready)',
-                        'damaged_replace' => 'Damaged / Needs Replace (Asset Status -> On Repaired)',
-                        'out_of_service' => 'Out Of Service (Asset Status -> Out Of Service)'
-                    ])->required(),
-                
-                Forms\Components\Textarea::make('note')->label('Technical Note')->columnSpanFull(),
-                
+                    Forms\Components\DatePicker::make('incident_date')->label('Incident Date')->required(),
+                    Forms\Components\TextInput::make('incident_time')->label('Incident Time (HH:MM)')->placeholder('e.g., 14:20')->required(),
+                ]),
+
+                Forms\Components\Grid::make(2)->schema([
+                    Forms\Components\TextInput::make('incident_location_name')->label('Specific Location/Area String Name')->placeholder('e.g., Pit A Block North')->required(),
+                    Forms\Components\Select::make('incident_location_id')
+                        ->label('Link Mapping Flight Location (Optional)')
+                        ->options(FlightLocation::pluck('location_name', 'id'))
+                        ->searchable()
+                        ->preload(),
+                ]),
+
+                Forms\Components\Textarea::make('chronology')->label('Full Chronology & Incident Details')->rows(3)->required(),
+            ]),
+
+            Forms\Components\Section::make('🔧 Workflow Status Control (Sync Master Data)')->schema([
+                Forms\Components\Grid::make(2)->schema([
+                    Forms\Components\Select::make('current_status')
+                        ->label('Repair Progress Status')
+                        ->options(['reported' => 'Reported', 'on_progress' => 'On Progress', 'resolved' => 'Resolved'])
+                        ->required(),
+
+                    // FIX MUTLAK: Duplikasi pemanggilan komponen sudah dihapus!
+                    Forms\Components\Select::make('condition_status')
+                        ->label('Condition Category Status')
+                        ->options([
+                            // Pilihan 'good' dihapus total sesuai logika Master!
+                            'damaged_replace' => 'Damaged / Needs Replace',
+                            'out_of_service' => 'Out of Service'
+                        ])
+                        ->required(),
+                ]),
+
+                Forms\Components\Textarea::make('note')
+                    ->label('Safety Special Notes / Remarks')
+                    ->rows(2),
+
+                // FIX MUTLAK: Mengganti titik (.) menjadi panah (->) sebelum multiple()
                 Forms\Components\FileUpload::make('evidences')
-                    ->label('Evidence Photos (Gallery/Camera Capture)')
-                    ->multiple()
+                    ->label('Incident Evidence Photos')
+                    ->multiple() 
                     ->image()
-                    ->directory('damage-evidences')
-                    ->columnSpanFull()
-            ])->columns(2)
-        ]);
+                    ->directory('damage-evidences'),
+            ]),
+        ])->columns(1);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('asset.asset_name')->label('Component Name')->searchable(),
-                Tables\Columns\TextColumn::make('reportedBy.full_name')->label('Reporter'),
-                Tables\Columns\BadgeColumn::make('damage_severity')
-                    ->colors([
-                        'info' => 'minor',
-                        'warning' => 'moderate',
-                        'danger' => 'major',
-                    ]),
-                Tables\Columns\BadgeColumn::make('current_status')
-                    ->colors([
-                        'danger' => 'reported',
-                        'warning' => 'on_progress',
-                        'success' => 'resolved',
-                    ]),
+                Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
+                Tables\Columns\TextColumn::make('asset.asset_name')->label('Asset Name')->sortable(),
+                Tables\Columns\TextColumn::make('damage_severity')->label('Severity')->badge()->color(fn($state)=>match($state){'minor' => 'info', 'moderate' => 'warning', 'major' => 'danger'}),
+                Tables\Columns\TextColumn::make('current_status')->label('Progress')->badge(),
+                Tables\Columns\TextColumn::make('incident_date')->label('Incident Date')->date(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()->color('warning'),
+                    Tables\Actions\DeleteAction::make(),
+                ])->icon('heroicon-m-ellipsis-vertical')->color('gray'),
             ]);
     }
 
@@ -128,8 +122,6 @@ class DamageReportResource extends Resource
     {
         return [
             'index' => Pages\ListDamageReports::route('/'),
-            'create' => Pages\CreateDamageReport::route('/create'),
-            'edit' => Pages\EditDamageReport::route('/{record}/edit'),
         ];
     }
 }

@@ -19,7 +19,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
-// FIX: Menggunakan namespace yang benar sesuai lokasi asli folder Resources Anda
+use App\Filament\Resources\MaintenanceLogResource;
 use App\Filament\Resources\Pages\Auth\CustomRegister;
 
 class AdminPanelProvider extends PanelProvider
@@ -56,6 +56,10 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+            ])
+            ->resources([
+                \App\Filament\Resources\MaintenanceLogResource::class,
+                \App\Filament\Resources\DamageReportResource::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
