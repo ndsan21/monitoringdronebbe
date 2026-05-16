@@ -12,9 +12,13 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. Membuat data Company bawaan
         $company = Company::firstOrCreate(['name' => 'PT. Drone Inovasi Master']);
-        $dept = Department::firstOrCreate(['company_id' => $company->id, 'name' => 'Surveyor Core']);
+        
+        // FIX UTAMA: Menghapus 'company_id' karena model & tabel Department sudah resmi berdiri sendiri secara universal
+        $dept = Department::firstOrCreate(['name' => 'Surveyor Core']);
 
+        // 2. Membuat atau memperbarui data Akun Super Admin
         User::updateOrCreate(
             ['email' => 'admin@drone.com'],
             [
@@ -23,8 +27,8 @@ class UserSeeder extends Seeder
                 'employee_id' => 'ADMIN001',
                 'password' => Hash::make('password123'),
                 'role' => 'super_admin',
-                'company_id' => $company->id,
-                'department_id' => $dept->id,
+                'company_id' => $company->id, // User tetap terhubung ke Company
+                'department_id' => $dept->id,  // User tetap terhubung ke Department
                 'is_approved' => true
             ]
         );

@@ -136,8 +136,12 @@ class AssetResource extends Resource
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company', 'drone']))
             ->actions([
-                Tables\Actions\EditAction::make()->color('warning'),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()->color('warning'),
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

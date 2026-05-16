@@ -10,10 +10,16 @@ class ListDrones extends ListRecords
 {
     protected static string $resource = DroneResource::class;
 
+    /**
+     * Tombol "New Drone" di kanan atas halaman tabel list drone
+     */
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label('New Drone')
+                // ❌ Eksekusi mati tombol "Create & create another" di dalam modal!
+                ->createAnother(false),
         ];
     }
 }

@@ -18,7 +18,6 @@ return new class extends Migration {
         // 2. DEPARTMENTS
         Schema::create('departments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('company_id')->constrained('companies')->cascadeOnDelete();
             $table->string('name');
             $table->timestamps();
         });
@@ -83,7 +82,7 @@ return new class extends Migration {
             $table->id();
             $table->string('location_name');
             $table->string('iup_number')->nullable();
-            $table->foreignId('company_id')->constrained('companies');
+            
             $table->timestamps();
         });
 

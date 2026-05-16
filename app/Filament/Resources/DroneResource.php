@@ -217,14 +217,17 @@ class DroneResource extends Resource
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company']))
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->color('info') 
-                    ->icon('heroicon-m-eye')
-                    ->modalActions([
-                        Tables\Actions\EditAction::make()->button()->color('warning'),
-                    ]),
-                
+                // 1. Trik Jembatan: Membuat baris Action Tersembunyi khusus melayani klik row browser
+                Tables\Actions\ViewAction::make('rowView')
+                    ->extraAttributes(['class' => 'hidden']),
+
+                // 2. MENU DROPDOWN TITIK TIGA UTAMA (Semua tombol rapi di dalam sini)
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make('view')
+                        ->label('View')
+                        ->color('info') 
+                        ->icon('heroicon-m-eye'),
+                    
                     Tables\Actions\EditAction::make()->color('warning'),
                     Tables\Actions\DeleteAction::make(),
                 ])
@@ -237,7 +240,7 @@ class DroneResource extends Resource
                 ]),
             ])
             ->recordUrl(null) 
-            ->recordAction('view'); 
+            ->recordAction('rowView'); // ◄--- KUNCI: Klik row diarahkan ke aksi jembatan tersembunyi
     }
 
     public static function getPages(): array

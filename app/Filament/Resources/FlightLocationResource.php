@@ -13,68 +13,71 @@ use Filament\Tables\Table;
 class FlightLocationResource extends Resource
 {
     protected static ?string $model = FlightLocation::class;
-    protected static ?string $navigationIcon = 'heroicon-o-map';
+
+    protected static ?string $navigationIcon = 'heroicon-o-map'; 
     protected static ?string $navigationGroup = 'Master Data Aviation';
+    protected static ?string $navigationLabel = 'Flight Locations';
+    protected static ?string $pluralLabel = 'Flight Locations';
+    protected static ?string $modelLabel = 'Flight Location';
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Registered Area Information')->schema([
-                Forms\Components\TextInput::make('location_name')
-                    ->label('Location Name')
-                    ->required(),
-                Forms\Components\TextInput::make('iup_number')
-                    ->label('IUP (Company License Number)')
-                    ->placeholder('e.g., IUP-REG-2026-X'),
-                Forms\Components\Select::make('company_id')
-                    ->relationship('company', 'name')
-                    ->label('Responsible Company')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-            ])->columns(3)
+            Forms\Components\Section::make('Registered Area Information')
+                ->schema([
+                    Forms\Components\TextInput::make('location_name')
+                        ->label('Location Name')
+                        ->placeholder('e.g., Block A Mining Area, North Plantation')
+                        ->required()
+                        ->unique(ignoreRecord: true),
+
+                    Forms\Components\TextInput::make('iup_number')
+                        ->label('IUP (Company License Number)')
+                        ->placeholder('e.g., IUP-REG-2026-X'),
+                ])->columns(2), // Layout otomatis membagi 2 rata kanan-kiri yang presisi
         ]);
     }
 
     public static function table(Table $table): Table
     {
-        return $table->columns([
-            Tables\Columns\TextColumn::make('location_name')->label('Location Name')->searchable(),
-            Tables\Columns\TextColumn::make('iup_number')->label('IUP Number'),
-            Tables\Columns\TextColumn::make('company.name')->label('Company Owner'),
-        ])
-        ->actions([
-            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
-            Tables\Actions\ViewAction::make('clickToView')
-                ->modalActions([
-                    Tables\Actions\EditAction::make()
-                        ->button()
-                        ->color('warning'),
-                ])
-                ->extraAttributes(['class' => 'hidden']),
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('index')
+                    ->label('No')
+                    ->rowIndex(),
 
-            // 2. MENU TITIK TIGA (Ubah di bagian sini)
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
-                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
-                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
-                    ->modalActions([
-                        Tables\Actions\EditAction::make()
-                            ->button()
-                            ->color('warning'),
-                    ]),
-                
-                Tables\Actions\EditAction::make()
-                    ->color('warning'),
-                    
-                Tables\Actions\DeleteAction::make(),
+                Tables\Columns\TextColumn::make('location_name')
+                    ->label('Location Name')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('iup_number')
+                    ->label('IUP Number')
+                    ->searchable()
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Registered At')
+                    ->dateTime()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->icon('heroicon-m-ellipsis-vertical')
-            ->color('gray'),
-        ])
-        
-        ->recordUrl(null) 
-        ->recordAction('clickToView'); 
+            ->filters([
+                //
+            ])
+            // UPGRADE: MENJADI DROP DOWN TITIK TIGA VERTIKAL
+            ->actions([
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()->color('warning'),
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array
