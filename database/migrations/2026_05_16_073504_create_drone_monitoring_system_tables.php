@@ -24,30 +24,39 @@ return new class extends Migration {
         });
 
         // RE-ARCHITECTING USERS TABLE
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('full_name')->nullable()->after('name');
-            $table->string('employee_id')->nullable()->unique()->after('full_name');
-            $table->string('photo_path')->nullable()->after('employee_id');
-            $table->foreignId('company_id')->nullable()->after('photo_path')->constrained('companies');
-            $table->foreignId('department_id')->nullable()->after('company_id')->constrained('departments');
-            // License fields
-            $table->string('license_number')->nullable();
-            $table->string('license_issued_by')->nullable();
-            $table->date('license_expiration_date')->nullable();
-            $table->text('digital_signature')->nullable();
-            // Access configuration
-            $table->enum('role', ['super_admin', 'admin', 'pilot'])->default('pilot')->after('password');
-            $table->boolean('is_approved')->default(true);
-        });
+        if (Schema::hasTable('users')) {
+            Schema::table('users', function (Blueprint $table) {
+                if (!Schema::hasColumn('users', 'full_name')) {
+                    $table->string('full_name')->nullable()->after('name');
+                }
+                if (!Schema::hasColumn('users', 'employee_id')) {
+                    $table->string('employee_id')->nullable()->unique()->after('full_name');
+                }
+                if (!Schema::hasColumn('users', 'photo_path')) {
+                    $table->string('photo_path')->nullable()->after('employee_id');
+                }
+                if (!Schema::hasColumn('users', 'company_id')) {
+                    $table->foreignId('company_id')->nullable()->after('photo_path')->constrained('companies');
+                }
+                if (!Schema::hasColumn('users', 'department_id')) {
+                    $table->foreignId('department_id')->nullable()->after('company_id')->constrained('departments');
+                }
+                
+                $table->string('license_number')->nullable();
+                $table->string('license_issued_by')->nullable();
+                $table->date('license_expiration_date')->nullable();
+                $table->text('digital_signature')->nullable();
+                
+                if (!Schema::hasColumn('users', 'role')) {
+                    $table->enum('role', ['super_admin', 'admin', 'pilot'])->default('pilot')->after('password');
+                }
+                if (!Schema::hasColumn('users', 'is_approved')) {
+                    $table->boolean('is_approved')->default(true);
+                }
+            });
+        }
 
-        // 3. DRONES
-        Schema::create('drones', function (Blueprint $table) {
-            $table->id();
-            $table->string('model'); // Cukup 1 kolom ini saja untuk menyimpan asset_name
-            $table->timestamps();
-        });
-
-        // 4. ASSETS
+        // 3. ASSETS (FONDASI UTAMA - TABEL DRONES LAMA DIHAPUS)
         Schema::create('assets', function (Blueprint $table) {
             $table->id();
             $table->string('asset_id')->unique();
@@ -55,7 +64,10 @@ return new class extends Migration {
             $table->string('asset_name');
             $table->enum('category', ['DRONE', 'SPAREPART']);
             $table->string('sparepart_type')->nullable();
-            $table->foreignId('drone_id')->nullable()->constrained('drones')->nullOnDelete();
+            
+            // FIX MUTLAK: Sekarang drone_id merujuk ke tabel ASSETS itu sendiri (Self-Referencing)
+            $table->foreignId('drone_id')->nullable()->constrained('assets')->nullOnDelete();
+            
             $table->date('entry_date');
             $table->enum('status', ['ready', 'in_use', 'on_repaired', 'out_of_service'])->default('ready');
             $table->foreignId('owner_company_id')->constrained('companies');
@@ -66,7 +78,7 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 5. FLIGHT LOCATIONS
+        // 4. FLIGHT LOCATIONS
         Schema::create('flight_locations', function (Blueprint $table) {
             $table->id();
             $table->string('location_name');
@@ -75,10 +87,13 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 6. FLIGHT LOGS
+        // 5. FLIGHT LOGS
         Schema::create('flight_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('drone_id')->constrained('drones');
+            
+            // FIX MUTLAK: drone_id di flight log sekarang merujuk ke tabel ASSETS
+            $table->foreignId('drone_id')->constrained('assets');
+            
             $table->foreignId('pilot_id')->constrained('users');
             $table->foreignId('co_pilot_id')->nullable()->constrained('users');
             $table->foreignId('requester_id')->nullable()->constrained('users');
@@ -95,6 +110,7 @@ return new class extends Migration {
             $table->decimal('takeoff_lng', 10, 7)->nullable();
             $table->enum('result', ['safe_to_fly', 'postpone', 'cancel'])->nullable();
             $table->text('note')->nullable();
+            
             // Weather Metrics
             $table->string('sky_condition')->nullable();
             $table->decimal('wind_speed_kmh', 6, 2)->nullable();
@@ -103,6 +119,7 @@ return new class extends Migration {
             $table->decimal('temperature_c', 5, 2)->nullable();
             $table->string('rain_prob')->nullable();
             $table->decimal('visibility_km', 5, 2)->nullable();
+            
             // Checklists
             $table->json('hardware_checklist')->nullable();
             $table->json('system_function_checklist')->nullable();
@@ -112,7 +129,7 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 7. DAMAGE REPORTS
+        // 6. DAMAGE REPORTS
         Schema::create('damage_reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('asset_id')->constrained('assets');
@@ -131,7 +148,7 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 8. MAINTENANCE LOGS
+        // 7. MAINTENANCE LOGS
         Schema::create('maintenance_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('asset_id')->constrained('assets');
@@ -149,7 +166,7 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 9. MAINTENANCE HARDWARE ITEMS
+        // 8. MAINTENANCE HARDWARE ITEMS
         Schema::create('maintenance_hardware_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('maintenance_log_id')->constrained('maintenance_logs')->cascadeOnDelete();
@@ -169,7 +186,6 @@ return new class extends Migration {
         Schema::dropIfExists('flight_logs');
         Schema::dropIfExists('flight_locations');
         Schema::dropIfExists('assets');
-        Schema::dropIfExists('drones');
         Schema::dropIfExists('departments');
         Schema::dropIfExists('companies');
     }

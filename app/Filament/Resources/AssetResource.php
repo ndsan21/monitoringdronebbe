@@ -22,29 +22,84 @@ class AssetResource extends Resource
     {
         return $form->schema([
             Forms\Components\Section::make('General Information')->schema([
-                Forms\Components\TextInput::make('asset_id')->required()->unique(ignoreRecord: true),
-                Forms\Components\TextInput::make('serial_number')->required()->unique(ignoreRecord: true),
-                Forms\Components\TextInput::make('asset_name')->label('Asset Custom Name')->required(),
-                Forms\Components\Select::make('category')->options(['DRONE' => 'DRONE', 'SPAREPART' => 'SPAREPART'])->live()->required(),
+                Forms\Components\TextInput::make('asset_id')
+                    ->label('Asset ID / Unit Code')
+                    ->required()
+                    ->unique(ignoreRecord: true),
+
+                Forms\Components\TextInput::make('serial_number')
+                    ->label('Serial Number')
+                    ->required()
+                    ->unique(ignoreRecord: true),
+
+                Forms\Components\TextInput::make('asset_name')
+                    ->label('Asset Custom Name')
+                    ->required(),
+
+                Forms\Components\Select::make('category')
+                    ->options([
+                        'DRONE' => 'DRONE',
+                        'SPAREPART' => 'SPAREPART'
+                    ])
+                    ->live() 
+                    ->required(),
                 
-                // STANDARISASI UX: Menggunakan TextInput + datalist() gabungan data master bawaan & database asli
+                // --- SINKRONISASI MANUAL: JAMINAN ANTI-MENTAL (SUDAH DIPERBAIKI) ---
+                Forms\Components\Select::make('spareparts_ids')
+                    ->label('Installed Parts / Components')
+                    ->placeholder('Pilih komponen yang akan dipasang ke drone ini...')
+                    ->options(function (?Asset $record) {
+                        // Menampilkan sparepart yang masih kosong ATAU yang memang milik drone ini sendiri
+                        return \App\Models\Asset::query()
+                            ->where('category', 'SPAREPART')
+                            ->where(function ($query) use ($record) {
+                                $query->whereNull('drone_id');
+                                if ($record) {
+                                    $query->orWhere('drone_id', $record->id);
+                                }
+                            })
+                            ->pluck('asset_name', 'id');
+                    })
+                    ->multiple() 
+                    ->preload()
+                    ->searchable()
+                    ->visible(fn (Get $get) => $get('category') === 'DRONE')
+                    ->columnSpanFull()
+                    
+                    // 1. FUNGSI LOAD: Mengambil data sparepart yang sudah menempel di database saat form dibuka
+                    ->afterStateHydrated(function (Forms\Components\Select $component, ?Asset $record) {
+                        if ($record) {
+                            $assignedIds = \App\Models\Asset::where('drone_id', $record->id)
+                                ->pluck('id')
+                                ->toArray();
+                            $component->state($assignedIds);
+                        }
+                    })
+                    
+                    // 2. FUNGSI SAVE: Memaksa database melakukan update secara tegas saat tombol simpan diklik
+                    ->saveRelationshipsUsing(function (Asset $record, $state) {
+                        $selectedIds = is_array($state) ? $state : [];
+
+                        // Step A: Lepas drone_id dari sparepart lama yang tidak dicentang lagi
+                        \App\Models\Asset::where('drone_id', $record->id)
+                            ->whereNotIn('id', $selectedIds)
+                            ->update(['drone_id' => null]);
+
+                        // Step B: Pasang drone_id baru ke semua sparepart yang baru dicentang
+                        if (! empty($selectedIds)) {
+                            \App\Models\Asset::whereIn('id', $selectedIds)
+                                ->update(['drone_id' => $record->id]);
+                        }
+                    }),
+                
+                // STANDARISASI UX: Tipe Sparepart (Hanya muncul jika kategori SPAREPART)
                 Forms\Components\TextInput::make('sparepart_type')
                     ->label('Sparepart Type')
                     ->placeholder('Ketik tipe sparepart... (contoh: Battery, Remote)')
                     ->datalist(fn () => array_unique(array_merge([
-                        'Frame',
-                        'Arms',
-                        'Landing body',
-                        'Camera',
-                        'Battery',
-                        'Motor',
-                        'Gimbal',
-                        'Tas',
-                        'Baling-baling (Propeller)',
-                        'Remote',
-                        'Landing Gear',
-                        'Prop Guard',
-                        'Gimbal & Kamera',
+                        'Frame', 'Arms', 'Landing body', 'Camera', 'Battery', 'Motor',
+                        'Gimbal', 'Tas', 'Baling-baling (Propeller)', 'Remote', 'Landing Gear',
+                        'Prop Guard', 'Gimbal & Kamera',
                     ], \App\Models\Asset::query()
                         ->whereNotNull('sparepart_type')
                         ->where('sparepart_type', '!=', '')
@@ -55,11 +110,23 @@ class AssetResource extends Resource
                     ->visible(fn (Get $get) => $get('category') === 'SPAREPART')
                     ->required(fn (Get $get) => $get('category') === 'SPAREPART'),
 
-                Forms\Components\DatePicker::make('entry_date')->default(now())->required(),
+                Forms\Components\DatePicker::make('entry_date')
+                    ->default(now())
+                    ->required(),
             ])->columns(2),
+
             Forms\Components\Section::make('Technical Details')->schema([
-                Forms\Components\Select::make('status')->options(['ready' => 'Ready', 'in_use' => 'In Use', 'on_repaired' => 'On Repaired', 'out_of_service' => 'Out of Service'])->default('ready')->required(),
+                Forms\Components\Select::make('status')
+                    ->options([
+                        'ready' => 'Ready', 
+                        'in_use' => 'In Use', 
+                        'on_repaired' => 'On Repaired', 
+                        'out_of_service' => 'Out of Service'
+                    ])
+                    ->default('ready')
+                    ->required(),
             ]),
+
             Forms\Components\Section::make('Ownership & Documentation')->schema([
                 Forms\Components\Select::make('owner_company_id')->relationship('company', 'name')->required(),
                 Forms\Components\Select::make('department_id')->relationship('department', 'name')->required(),
@@ -79,7 +146,7 @@ class AssetResource extends Resource
                     ->rowIndex(),
 
                 Tables\Columns\TextColumn::make('asset_name')
-                    ->label('Drone Name')
+                    ->label('Drone / Asset Name')
                     ->searchable()
                     ->sortable(),
 

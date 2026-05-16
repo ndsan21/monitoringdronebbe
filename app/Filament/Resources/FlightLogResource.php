@@ -9,9 +9,6 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms\Components\Actions;
-use Filament\Forms\Components\Actions\Action;
-use Filament\Notifications\Notification;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Carbon\Carbon;
@@ -45,8 +42,36 @@ class FlightLogResource extends Resource
                             ->preload()
                             ->required(),
 
-                        Forms\Components\Select::make('drone_id')->relationship('drone', 'model')->required(),
+                        Forms\Components\Select::make('drone_id')
+                            ->relationship('drone', 'asset_name', fn ($query) => $query->where('category', 'DRONE'))
+                            ->label('Drone Model / Name')
+                            ->searchable()
+                            ->preload()
+                            ->live() 
+                            ->required()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if ($state) {
+                                    // 1. Otomatis cari RC yang terhubung ke drone ini di tabel assets
+                                    $rc = \App\Models\Asset::query()
+                                        ->where('drone_id', $state)
+                                        ->where('category', 'SPAREPART')
+                                        ->where(function ($q) {
+                                            $q->where('sparepart_type', 'LIKE', '%Remote%')
+                                              ->orWhere('sparepart_type', 'LIKE', '%RC%');
+                                        })
+                                        ->first();
+
+                                    $set('rc_serial_id', $rc?->serial_number);
+                                    
+                                    // Kosongkan pilihan baterai agar pilot memilih manual komponen yang dipakai saat itu
+                                    $set('battery_serial_id', null); 
+                                } else {
+                                    $set('rc_serial_id', null);
+                                    $set('battery_serial_id', null);
+                                }
+                            }),
                         
+                        // FIX LOGIKA LOKASI: Diubah menjadi jembatan teks string agar tidak merusak foreign key integer database
                         Forms\Components\TextInput::make('location_name_bridge')
                             ->label('Flight Location')
                             ->placeholder('Ketik lokasi... (Otomatis tersimpan jika baru)')
@@ -59,22 +84,13 @@ class FlightLogResource extends Resource
                             )
                             ->required()
                             ->formatStateUsing(fn ($record) => $record?->flightLocation?->location_name)
-                            ->dehydrateStateUsing(function ($state, Set $set) {
-                                if (!empty($state)) {
-                                    $location = \App\Models\FlightLocation::firstOrCreate([
-                                        'location_name' => $state,
-                                    ], [
-                                        'company_id' => \App\Models\Company::first()?->id ?? 1,
-                                    ]);
-                                    $set('flight_location_id', $location->id);
-                                }
-                                return null;
-                            }),
-                        
+                            ->live(),
+
                         Forms\Components\Hidden::make('flight_location_id'),
-                        
-                        // FIX: Trik bypass agar database tidak eror mencari default value
-                        Forms\Components\Hidden::make('flight_area_name')->default('-'),
+
+                        Forms\Components\Hidden::make('flight_area_name')
+                            ->default('-')
+                            ->dehydrateStateUsing(fn () => '-'),
 
                         Forms\Components\Select::make('purpose')
                             ->options([
@@ -82,6 +98,7 @@ class FlightLogResource extends Resource
                                 'documentation' => 'Dokumentasi Acara',
                                 'mapping' => 'Orthophoto / Pemetaan'
                             ])->required(),
+
                         Forms\Components\Select::make('flight_mode')
                             ->options([
                                 'auto' => 'Auto',
@@ -140,54 +157,62 @@ class FlightLogResource extends Resource
 
                         Forms\Components\Fieldset::make('Take Off Geolocation')->schema([
                             Forms\Components\TextInput::make('takeoff_lat')->numeric()->required()->id('takeoff_lat')
-                                ->extraAttributes([
-                                    'x-init' => "
-                                        if (!\$wire.data.takeoff_lat) {
-                                            navigator.geolocation.getCurrentPosition(async (pos) => {
-                                                const lat = pos.coords.latitude;
-                                                const lng = pos.coords.longitude;
-                                                const apiKey = '1c7f474ddb2f26c8644c9c1b4c97db31';
-                                                \$wire.set('data.takeoff_lat', lat.toFixed(8));
-                                                \$wire.set('data.takeoff_lng', lng.toFixed(8));
-                                                try {
-                                                    const resAddr = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=\${lat}&lon=\${lng}`);
-                                                    const addr = await resAddr.json();
-                                                    if (addr.display_name) \$wire.set('data.address_detail', addr.display_name);
-
-                                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lng}&appid=\${apiKey}&units=metric`);
-                                                    const w = await resW.json();
-                                                    if (w.main) {
-                                                        \$wire.set('data.temp_c', w.main.temp);
-                                                        \$wire.set('data.humidity', w.main.humidity);
-                                                        \$wire.set('data.wind_speed', (w.wind.speed * 3.6).toFixed(2));
-                                                        \$wire.set('data.visibility_km', (w.visibility / 1000).toFixed(1));
-                                                        
-                                                        const deg = w.wind.deg;
-                                                        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-                                                        const dir = directions[Math.round(deg / 45) % 8];
-                                                        \$wire.set('data.wind_dir', dir + ' (' + deg + '°)');
-
-                                                        const rain = w.rain ? (w.rain['1h'] || w.rain['3h'] || 0) : 0;
-                                                        \$wire.set('data.rain_prob', rain + ' mm/h');
-
-                                                        if (w.weather && w.weather[0]) {
-                                                            \$wire.set('data.sky_condition', w.weather[0].description.toUpperCase());
+                                // FIX EROR [$data]: Pengaman closure PHP agar tidak disuntikkan ke halaman tabel utama
+                                ->extraAttributes(function ($livewire) {
+                                    if (! property_exists($livewire, 'data')) {
+                                        return [];
+                                    }
+                                    return [
+                                        'x-init' => '
+                                            if (typeof $wire !== "undefined" && !$wire.get("data.takeoff_lat")) {
+                                                navigator.geolocation.getCurrentPosition(async (pos) => {
+                                                    const lat = pos.coords.latitude;
+                                                    const lng = pos.coords.longitude;
+                                                    const apiKey = "1c7f474ddb2f26c8644c9c1b4c97db31";
+                                                    
+                                                    $wire.set("data.takeoff_lat", lat.toFixed(8));
+                                                    $wire.set("data.takeoff_lng", lng.toFixed(8));
+                                                    
+                                                    try {
+                                                        const resAddr = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+                                                        const addr = await resAddr.json();
+                                                        if (addr.display_name) {
+                                                            $wire.set("data.address_detail", addr.display_name);
                                                         }
-                                                        
-                                                        new FilamentNotification().title('Maps & Weather Synced!').success().send();
-                                                    }
-                                                } catch (e) { console.error(e); }
-                                            });
-                                        }
-                                    "
-                                ]),
+
+                                                        const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric`);
+                                                        const w = await resW.json();
+                                                        if (w.main) {
+                                                            $wire.set("data.temp_c", w.main.temp);
+                                                            $wire.set("data.humidity", w.main.humidity);
+                                                            $wire.set("data.wind_speed", (w.wind.speed * 3.6).toFixed(2));
+                                                            $wire.set("data.visibility_km", (w.visibility / 1000).toFixed(1));
+                                                            
+                                                            const deg = w.wind.deg;
+                                                            const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+                                                            const dir = directions[Math.round(deg / 45) % 8];
+                                                            $wire.set("data.wind_dir", dir + " (" + deg + "°)");
+
+                                                            const rain = w.rain ? (w.rain["1h"] || w.rain["3h"] || 0) : 0;
+                                                            $wire.set("data.rain_prob", rain + " mm/h");
+
+                                                            if (w.weather && w.weather[0]) {
+                                                                $wire.set("data.sky_condition", w.weather[0].description.toUpperCase());
+                                                            }
+                                                        }
+                                                    } catch (e) { console.error(e); }
+                                                });
+                                            }
+                                        '
+                                    ];
+                                }),
                             Forms\Components\TextInput::make('takeoff_lng')->numeric()->required()->id('takeoff_lng'),
                             Forms\Components\TextInput::make('address_detail')->columnSpanFull()->id('address_detail'),
                         ]),
                     ]),
             ]),
 
-            // --- 2. PRE-FLIGHT CHECKLIST (DIKEMBALIKAN KE SINI) ---
+            // --- 2. PRE-FLIGHT CHECKLIST ---
             Forms\Components\Section::make('Pre-Flight Checklist')
                 ->collapsible()
                 ->schema([
@@ -206,14 +231,19 @@ class FlightLogResource extends Resource
                             Forms\Components\Grid::make(4)->schema([
                                 Forms\Components\Select::make('rc_serial_id')
                                     ->label('RC Serial/ID')
-                                    ->options(fn () => \App\Models\Asset::query()
-                                        ->where('category', 'SPAREPART')
-                                        ->where(function ($query) {
-                                            $query->where('sparepart_type', 'LIKE', '%Remote%')
-                                                  ->orWhere('sparepart_type', 'LIKE', '%RC%');
-                                        })
-                                        ->pluck('serial_number', 'serial_number')
-                                    )
+                                    ->options(function (Forms\Get $get) {
+                                        $droneId = $get('drone_id');
+                                        if (! $droneId) return [];
+
+                                        return \App\Models\Asset::query()
+                                            ->where('drone_id', $droneId)
+                                            ->where('category', 'SPAREPART')
+                                            ->where(function ($query) {
+                                                $query->where('sparepart_type', 'LIKE', '%Remote%')
+                                                      ->orWhere('sparepart_type', 'LIKE', '%RC%');
+                                            })
+                                            ->pluck('serial_number', 'serial_number');
+                                    })
                                     ->searchable()
                                     ->preload()
                                     ->required(),
@@ -222,15 +252,20 @@ class FlightLogResource extends Resource
 
                                 Forms\Components\Select::make('battery_serial_id')
                                     ->label('Batt Serial/ID')
-                                    ->options(fn () => \App\Models\Asset::query()
-                                        ->where('category', 'SPAREPART')
-                                        ->where(function ($query) {
-                                            $query->where('sparepart_type', 'LIKE', '%Battery%')
-                                                  ->orWhere('sparepart_type', 'LIKE', '%Batt%')
-                                                  ->orWhere('sparepart_type', 'LIKE', '%Baterai%');
-                                        })
-                                        ->pluck('serial_number', 'serial_number')
-                                    )
+                                    ->options(function (Forms\Get $get) {
+                                        $droneId = $get('drone_id');
+                                        if (! $droneId) return [];
+
+                                        return \App\Models\Asset::query()
+                                            ->where('drone_id', $droneId)
+                                            ->where('category', 'SPAREPART')
+                                            ->where(function ($query) {
+                                                $query->where('sparepart_type', 'LIKE', '%Battery%')
+                                                      ->orWhere('sparepart_type', 'LIKE', '%Batt%')
+                                                      ->orWhere('sparepart_type', 'LIKE', '%Baterai%');
+                                            })
+                                            ->pluck('serial_number', 'serial_number');
+                                    })
                                     ->searchable()
                                     ->preload()
                                     ->required(),
@@ -313,7 +348,14 @@ class FlightLogResource extends Resource
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\CheckboxList::make('visibility')
                             ->label('Actual Visibility')
-                            ->hint(fn (Get $get) => 'Satellite Data: ' . ($get('visibility_km') ?? '--') . ' km')
+                            // FIX AMAN [$data]: Proteksi total properti di halaman tabel index
+                            ->hint(function (Get $get, $livewire) {
+                                if (! property_exists($livewire, 'data')) {
+                                    return 'Satellite Data: -- km';
+                                }
+                                $val = $get('visibility_km');
+                                return 'Satellite Data: ' . ($val ?? '--') . ' km';
+                            })
                             ->hintColor('warning')
                             ->options(['clear' => 'Clear (>10km)', 'foggy' => 'Foggy', 'limited' => 'Limited (<10km)', 'smoky' => 'Smoky'])
                             ->columns(2)->required(),
@@ -347,14 +389,13 @@ class FlightLogResource extends Resource
                 ->collapsed() 
                 ->schema([
                     Forms\Components\Fieldset::make('A. Post-Flight Inspection')
+                        ->columns(1) 
                         ->schema([
-                            // 3 Toggle dibuat sejajar dalam 1 baris
                             Forms\Components\Grid::make(3)->schema([
                                 Forms\Components\Toggle::make('is_motor_ok')->label('1. Motors is OK')->onColor('success'),
                                 Forms\Components\Toggle::make('is_propeller_ok')->label('2. Propellers is OK')->onColor('success'),
                                 Forms\Components\Toggle::make('is_airframe_ok')->label('3. Airframe is OK')->onColor('success'),
                             ]),
-                            // 2 Input Baterai dibuat sejajar dalam 1 baris
                             Forms\Components\Grid::make(2)->schema([
                                 Forms\Components\TextInput::make('rc_battery_finish')->label('4. Remaining RC Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai remote controller'),
                                 Forms\Components\TextInput::make('drone_battery_finish')->label('5. Remaining Drone Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai drone'),
@@ -429,7 +470,13 @@ class FlightLogResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('date')->date()->sortable(),
                 Tables\Columns\TextColumn::make('pilot.full_name')->searchable(),
-                Tables\Columns\BadgeColumn::make('result')->colors(['success' => 'safe_to_fly', 'warning' => 'postpone', 'danger' => 'cancel']),
+                Tables\Columns\TextColumn::make('result')
+                    ->badge()
+                    ->colors([
+                        'success' => 'safe_to_fly',
+                        'warning' => 'postpone',
+                        'danger' => 'cancel'
+                    ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make('clickToView')

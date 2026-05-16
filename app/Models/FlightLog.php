@@ -2,29 +2,81 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FlightLog extends Model
 {
-    protected $fillable = [
-        'drone_id', 'pilot_id', 'co_pilot_id', 'requester_id', 'authorized_by_id',
-        'purpose', 'flight_mode', 'flight_area_name', 'flight_location_id', 'date',
-        'takeoff_time', 'landing_time', 'duration', 'takeoff_lat', 'takeoff_lng',
-        'result', 'note', 'sky_condition', 'wind_speed_kmh', 'wind_direction',
-        'humidity_percent', 'temperature_c', 'rain_prob', 'visibility_km',
-        'hardware_checklist', 'system_function_checklist', 'environment_checklist',
-        'safety_permit_checklist', 'flight_evidences'
-    ];
+    use HasFactory;
 
+    // 1. BUKA GERBANG KEAMANAN: Izinkan semua kolom dari form untuk disimpan ke database
+    protected $guarded = []; 
+    // Catatan: Jika sebelumnya Anda menggunakan protected $fillable = ['...'], 
+    // silakan HAPUS/KOMEN baris $fillable tersebut dan ganti dengan $guarded = []
+
+    // 2. CASTING DATA: Beritahu Laravel bahwa field di bawah ini berbentuk Array/Boolean
     protected $casts = [
-        'hardware_checklist' => 'array', 'system_function_checklist' => 'array',
-        'environment_checklist' => 'array', 'safety_permit_checklist' => 'array',
-        'flight_evidences' => 'array', 'date' => 'date'
+        'date' => 'date',
+        
+        // Data dari CheckboxList (Wajib di-cast ke array agar tidak eror)
+        'app_readiness' => 'array',
+        'calibration' => 'array',
+        'link_gps' => 'array',
+        'rc_sticks_switches' => 'array',
+        'media_gimbal' => 'array',
+        'app_self_check' => 'array',
+        'flight_test' => 'array',
+        'visual_condition' => 'array',
+        'visibility' => 'array',
+        'ground_safety' => 'array',
+        'pilot_health' => 'array',
+        'observer_health' => 'array',
+        'clearance' => 'array',
+        
+        // Data dari FileUpload multiple (Gallery)
+        'flight_evidences' => 'array',
+        
+        // Data dari Toggle (Boolean)
+        'pre_drone_motors' => 'boolean',
+        'pre_drone_propellers' => 'boolean',
+        'pre_drone_airframe' => 'boolean',
+        'pre_phone_battery_ok' => 'boolean',
+        'notam' => 'boolean',
+        'is_motor_ok' => 'boolean',
+        'is_propeller_ok' => 'boolean',
+        'is_airframe_ok' => 'boolean',
     ];
 
-    public function drone(): BelongsTo { return $this->belongsTo(Drone::class); }
-    public function pilot(): BelongsTo { return $this->belongsTo(User::class, 'pilot_id'); }
-    public function coPilot(): BelongsTo { return $this->belongsTo(User::class, 'co_pilot_id'); }
-    public function flightLocation(): BelongsTo { return $this->belongsTo(FlightLocation::class); }
+    // --- DI BAWAH INI ADALAH RELASI ANDA (Jangan dihapus, biarkan seperti aslinya) ---
+    public function pilot()
+    {
+        return $this->belongsTo(User::class, 'pilot_id');
+    }
+
+    public function coPilot()
+    {
+        return $this->belongsTo(User::class, 'co_pilot_id');
+    }
+
+    public function drone(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+{
+    // Mengarah ke Asset::class karena data drone ada di tabel assets sekarang
+    return $this->belongsTo(Asset::class, 'drone_id'); 
+}
+
+    public function flightLocation()
+    {
+        return $this->belongsTo(FlightLocation::class, 'flight_location_id');
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'requesting_company_id');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'requesting_department_id');
+    }
+    
 }
