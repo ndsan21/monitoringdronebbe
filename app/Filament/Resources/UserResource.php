@@ -10,6 +10,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Get;
+use Filament\Notifications\Notification;
 
 class UserResource extends Resource
 {
@@ -40,20 +41,20 @@ class UserResource extends Resource
                     ->maxLength(255),
                 Forms\Components\TextInput::make('employee_id')
                     ->label('Employee ID (NIK)')
-                    ->required()
+                    ->required(fn (string $operation) => $operation !== 'create') // Opsional saat regis awal mandiri
                     ->unique(ignoreRecord: true),
                 Forms\Components\Select::make('company_id')
                     ->relationship('company', 'name')
                     ->label('Company (PT Parent)')
-                    ->required(),
+                    ->required(fn (string $operation) => $operation !== 'create'),
                 Forms\Components\Select::make('department_id')
                     ->relationship('department', 'name')
                     ->label('Department')
-                    ->required(),
+                    ->required(fn (string $operation) => $operation !== 'create'),
             ])->columns(2),
 
-            // --- SECTION 2: PILOT LICENSE ---
-            Forms\Components\Section::make('Pilot License (Certification)')->schema([
+            // --- SECTION 2: PILOT LICENSE & SIGNATURE ---
+            Forms\Components\Section::make('Pilot License & Certification')->schema([
                 Forms\Components\TextInput::make('license_number')
                     ->label('License / Certificate Number')
                     ->placeholder('e.g., PERHUB-UAV-12345'),
@@ -62,9 +63,16 @@ class UserResource extends Resource
                     ->placeholder('e.g., DKUPPU Kemenhub'),
                 Forms\Components\DatePicker::make('license_expiration_date')
                     ->label('Expiration Date'),
-                Forms\Components\Textarea::make('digital_signature')
-                    ->label('Digital Signature Token / Notes')
-                    ->rows(2),
+                
+                Forms\Components\FileUpload::make('digital_signature')
+                    ->label('Digital Signature (Tanda Tangan PNG)')
+                    ->image()
+                    ->acceptedFileTypes(['image/png']) 
+                    ->directory('signatures') 
+                    ->maxSize(1024) 
+                    ->placeholder('Unggah file TTD digital transparan (.png)')
+                    ->imageEditor() 
+                    ->columnSpanFull(), 
             ])->columns(3),
 
             // --- SECTION 3: SYSTEM ACCESS ---
@@ -80,11 +88,11 @@ class UserResource extends Resource
                             'admin' => 'Admin',
                             'pilot' => 'Drone Pilot'
                         ])
-                        ->disabled(fn () => !auth()->user()?->isSuperAdmin()) // Hanya Super Admin yang bisa ubah role
+                        ->disabled(fn () => !auth()->user()?->isSuperAdmin()) 
                         ->required(),
                     Forms\Components\Toggle::make('is_approved')
                         ->label('Approve User Access')
-                        ->default(true),
+                        ->default(false),
                     Forms\Components\TextInput::make('password')
                         ->password()
                         ->dehydrateStateUsing(fn (?string $state) => filled($state) ? bcrypt($state) : null)
@@ -109,9 +117,23 @@ class UserResource extends Resource
                         'warning' => 'admin',
                         'success' => 'pilot',
                     ]),
+                
+                // INTERSEPTOR TRIGGER EMAIL NOTIFIKASI
                 Tables\Columns\ToggleColumn::make('is_approved')
                     ->label('Approved')
-                    ->disabled(fn () => !auth()->user()?->isSuperAdmin()),
+                    ->disabled(fn () => !auth()->user()?->isSuperAdmin() && !auth()->user()?->isAdmin())
+                    ->afterStateUpdated(function (User $record, $state) {
+                        // Jika toggle diaktifkan (true), kirim email notifikasi
+                        if ($state === true) {
+                            $record->notify(new \App\Notifications\AccountApprovedNotification());
+                            
+                            Notification::make()
+                                ->title('Account Approved & Activated!')
+                                ->body("Notification email successfully sent to {$record->email}")
+                                ->success()
+                                ->send();
+                        }
+                    }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -122,7 +144,7 @@ class UserResource extends Resource
     {
         return [
             'index' => Pages\ListUsers::route('/'),
-            'create' => Pages\CreateUser::route('/create'),
+            'create' => Pages\CreateUser::createRoute('/create'),
             'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
     }

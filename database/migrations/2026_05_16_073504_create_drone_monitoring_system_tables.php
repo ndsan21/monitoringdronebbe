@@ -43,9 +43,7 @@ return new class extends Migration {
         // 3. DRONES
         Schema::create('drones', function (Blueprint $table) {
             $table->id();
-            $table->string('brand');
-            $table->string('model');
-            $table->string('type');
+            $table->string('model'); // Cukup 1 kolom ini saja untuk menyimpan asset_name
             $table->timestamps();
         });
 

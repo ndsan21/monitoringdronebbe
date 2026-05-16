@@ -8,44 +8,47 @@ use App\Models\Drone;
 class AssetObserver
 {
     /**
-     * Handle the Asset "created" event.
+     * Berjalan otomatis saat data Asset BARU dibuat
      */
     public function created(Asset $asset): void
     {
-        // Jika asset yang dibuat berkategori DRONE, otomatis buatkan datanya di tabel Drones
         if (strtoupper($asset->category) === 'DRONE') {
-            Drone::create([
-                'drone_name' => $asset->asset_name,
-                'serial_number' => $asset->serial_number,
-                'status' => 'ready', // Status awal default bawaan drone baru
+            // Otomatis buat data di tabel Drones
+            $drone = Drone::create([
+                'brand' => 'Auto-Sync (Update Manual)', // Nilai default karena di form asset tidak ada brand
+                'model' => $asset->asset_name,         // Nama asset dijadikan model drone
+                'type'  => 'multirotor',               // Nilai default
             ]);
+
+            // Diam-diam update kolom drone_id di tabel asset agar saling terhubung
+            // (updateQuietly digunakan agar tidak memicu observer "updated" dan terjadi looping/error)
+            $asset->updateQuietly(['drone_id' => $drone->id]);
         }
     }
 
     /**
-     * Handle the Asset "updated" event.
+     * Berjalan otomatis saat data Asset DIUBAH
      */
     public function updated(Asset $asset): void
     {
-        // Jika data asset diubah, pastikan data drone yang terhubung ikut ter-update namanya
-        if (strtoupper($asset->category) === 'DRONE') {
-            $drone = Drone::where('serial_number', $asset->serial_number)->first();
+        if (strtoupper($asset->category) === 'DRONE' && $asset->drone_id) {
+            $drone = Drone::find($asset->drone_id);
             if ($drone) {
                 $drone->update([
-                    'drone_name' => $asset->asset_name,
+                    'model' => $asset->asset_name,
                 ]);
             }
         }
     }
 
     /**
-     * Handle the Asset "deleted" event.
+     * Berjalan otomatis saat data Asset DIHAPUS
      */
     public function deleted(Asset $asset): void
     {
-        // Jika asset dihapus, hapus juga data drone-nya agar tidak menjadi data sampah
-        if (strtoupper($asset->category) === 'DRONE') {
-            Drone::where('serial_number', $asset->serial_number)->delete();
+        if (strtoupper($asset->category) === 'DRONE' && $asset->drone_id) {
+            // Jika asset dihapus, hapus juga data di master drone agar rapi
+            Drone::where('id', $asset->drone_id)->delete();
         }
     }
 }
