@@ -26,7 +26,35 @@ class AssetResource extends Resource
                 Forms\Components\TextInput::make('serial_number')->required()->unique(ignoreRecord: true),
                 Forms\Components\TextInput::make('asset_name')->label('Asset Custom Name')->required(),
                 Forms\Components\Select::make('category')->options(['DRONE' => 'DRONE', 'SPAREPART' => 'SPAREPART'])->live()->required(),
-                Forms\Components\TextInput::make('sparepart_type')->visible(fn (Get $get) => $get('category') === 'SPAREPART')->required(fn (Get $get) => $get('category') === 'SPAREPART'),
+                
+                // STANDARISASI UX: Menggunakan TextInput + datalist() gabungan data master bawaan & database asli
+                Forms\Components\TextInput::make('sparepart_type')
+                    ->label('Sparepart Type')
+                    ->placeholder('Ketik tipe sparepart... (contoh: Battery, Remote)')
+                    ->datalist(fn () => array_unique(array_merge([
+                        'Frame',
+                        'Arms',
+                        'Landing body',
+                        'Camera',
+                        'Battery',
+                        'Motor',
+                        'Gimbal',
+                        'Tas',
+                        'Baling-baling (Propeller)',
+                        'Remote',
+                        'Landing Gear',
+                        'Prop Guard',
+                        'Gimbal & Kamera',
+                    ], \App\Models\Asset::query()
+                        ->whereNotNull('sparepart_type')
+                        ->where('sparepart_type', '!=', '')
+                        ->distinct()
+                        ->pluck('sparepart_type')
+                        ->toArray()
+                    )))
+                    ->visible(fn (Get $get) => $get('category') === 'SPAREPART')
+                    ->required(fn (Get $get) => $get('category') === 'SPAREPART'),
+
                 Forms\Components\DatePicker::make('entry_date')->default(now())->required(),
             ])->columns(2),
             Forms\Components\Section::make('Technical Details')->schema([
@@ -81,37 +109,30 @@ class AssetResource extends Resource
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company']))
             ->actions([
-            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
-            Tables\Actions\ViewAction::make('clickToView')
-                ->modalActions([
-                    Tables\Actions\EditAction::make()
-                        ->button()
-                        ->color('warning'),
-                ])
-                ->extraAttributes(['class' => 'hidden']),
-
-            // 2. MENU TITIK TIGA (Ubah di bagian sini)
-            Tables\Actions\ActionGroup::make([
                 Tables\Actions\ViewAction::make()
-                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
-                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                    ->label('View')
+                    ->color('info')
+                    ->icon('heroicon-m-eye')
                     ->modalActions([
                         Tables\Actions\EditAction::make()
                             ->button()
                             ->color('warning'),
                     ]),
-                
-                Tables\Actions\EditAction::make()
-                    ->color('warning'),
-                    
-                Tables\Actions\DeleteAction::make(),
+
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make()->color('warning'),
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
             ])
-            ->icon('heroicon-m-ellipsis-vertical')
-            ->color('gray'),
-        ])
-        
-        ->recordUrl(null) 
-        ->recordAction('clickToView'); 
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->recordUrl(null)
+            ->recordAction('view');
     }
 
     public static function getPages(): array

@@ -38,7 +38,13 @@ class FlightLogResource extends Resource
                             ->dehydrated()
                             ->required(),
 
-                        Forms\Components\Select::make('co_pilot_id')->relationship('coPilot', 'full_name')->searchable()->required(),
+                        Forms\Components\Select::make('co_pilot_id')
+                            ->relationship('coPilot', 'full_name')
+                            ->label('Co Pilot')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+
                         Forms\Components\Select::make('drone_id')->relationship('drone', 'model')->required(),
                         
                         Forms\Components\TextInput::make('location_name_bridge')
@@ -66,6 +72,9 @@ class FlightLogResource extends Resource
                             }),
                         
                         Forms\Components\Hidden::make('flight_location_id'),
+                        
+                        // FIX: Trik bypass agar database tidak eror mencari default value
+                        Forms\Components\Hidden::make('flight_area_name')->default('-'),
 
                         Forms\Components\Select::make('purpose')
                             ->options([
@@ -95,36 +104,35 @@ class FlightLogResource extends Resource
                                 ->displayFormat('H:i:s')
                                 ->live()
                                 ->afterStateUpdated(fn (Set $set, Get $get) => self::updateDuration($set, $get))
+                                ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state)->format('H:i:s') : null)
+                                ->dehydrateStateUsing(fn ($state, Get $get) => $state && $get('date') ? Carbon::parse($get('date'))->format('Y-m-d') . ' ' . $state : $state)
                                 ->required(),
+
                             Forms\Components\TimePicker::make('landing_time')
                                 ->label('Landing Time')
                                 ->seconds()
                                 ->format('H:i:s')
                                 ->displayFormat('H:i:s')
                                 ->live()
-                                ->afterStateUpdated(fn (Set $set, Get $get) => self::updateDuration($set, $get)),
+                                ->afterStateUpdated(fn (Set $set, Get $get) => self::updateDuration($set, $get))
+                                ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state)->format('H:i:s') : null)
+                                ->dehydrateStateUsing(fn ($state, Get $get) => $state && $get('date') ? Carbon::parse($get('date'))->format('Y-m-d') . ' ' . $state : $state),
                         ]),
 
                         Forms\Components\Placeholder::make('duration_display')
                             ->label('Flight Duration')
                             ->content(function (Get $get) {
                                 $seconds = (int) ($get('duration') ?? 0);
-                                
                                 if ($seconds <= 0) return '0 seconds';
                                 if ($seconds < 60) return "{$seconds} seconds";
-
                                 if ($seconds < 3600) {
                                     $minutes = floor($seconds / 60);
                                     $restSeconds = $seconds % 60;
                                     return "{$minutes} minutes" . ($restSeconds > 0 ? " {$restSeconds} seconds" : "");
                                 }
-
                                 $hours = floor($seconds / 3600);
                                 $minutes = floor(($seconds % 3600) / 60);
-                                $hourText = $hours > 1 ? 'hours' : 'hour';
-                                $minText = $minutes > 1 ? 'minutes' : 'minute';
-                                
-                                return "{$hours} {$hourText}" . ($minutes > 0 ? " {$minutes} {$minText}" : "");
+                                return "{$hours} " . ($hours > 1 ? 'hours' : 'hour') . ($minutes > 0 ? " {$minutes} " . ($minutes > 1 ? 'minutes' : 'minute') : "");
                             })
                             ->extraAttributes(['class' => 'text-xl font-bold text-primary-600']),
                         
@@ -163,8 +171,7 @@ class FlightLogResource extends Resource
                                                         \$wire.set('data.rain_prob', rain + ' mm/h');
 
                                                         if (w.weather && w.weather[0]) {
-                                                            const desc = w.weather[0].description;
-                                                            \$wire.set('data.sky_condition', desc.toUpperCase());
+                                                            \$wire.set('data.sky_condition', w.weather[0].description.toUpperCase());
                                                         }
                                                         
                                                         new FilamentNotification().title('Maps & Weather Synced!').success().send();
@@ -180,7 +187,111 @@ class FlightLogResource extends Resource
                     ]),
             ]),
 
-            // --- 2. ENVIRONMENT & WEATHER ---
+            // --- 2. PRE-FLIGHT CHECKLIST (DIKEMBALIKAN KE SINI) ---
+            Forms\Components\Section::make('Pre-Flight Checklist')
+                ->collapsible()
+                ->schema([
+                    Forms\Components\Fieldset::make('A. Hardware Inspection')
+                        ->schema([
+                            Forms\Components\Grid::make(3)->schema([
+                                Forms\Components\Toggle::make('pre_drone_motors')->label('1. Drone motors')->onColor('success')->required(),
+                                Forms\Components\Toggle::make('pre_drone_propellers')->label('2. Drone propellers')->onColor('success')->required(),
+                                Forms\Components\Toggle::make('pre_drone_airframe')->label('3. Drone airframe')->onColor('success')->required(),
+                            ]),
+                            Forms\Components\Toggle::make('pre_phone_battery_ok')->label('6. Phone device battery (≥ 30%)')->onColor('success')->required(),
+                        ]),
+
+                    Forms\Components\Fieldset::make('4. Remote & Battery Status')
+                        ->schema([
+                            Forms\Components\Grid::make(4)->schema([
+                                Forms\Components\Select::make('rc_serial_id')
+                                    ->label('RC Serial/ID')
+                                    ->options(fn () => \App\Models\Asset::query()
+                                        ->where('category', 'SPAREPART')
+                                        ->where(function ($query) {
+                                            $query->where('sparepart_type', 'LIKE', '%Remote%')
+                                                  ->orWhere('sparepart_type', 'LIKE', '%RC%');
+                                        })
+                                        ->pluck('serial_number', 'serial_number')
+                                    )
+                                    ->searchable()
+                                    ->preload()
+                                    ->required(),
+
+                                Forms\Components\TextInput::make('rc_battery_start')->label('RC Battery (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->required(),
+
+                                Forms\Components\Select::make('battery_serial_id')
+                                    ->label('Batt Serial/ID')
+                                    ->options(fn () => \App\Models\Asset::query()
+                                        ->where('category', 'SPAREPART')
+                                        ->where(function ($query) {
+                                            $query->where('sparepart_type', 'LIKE', '%Battery%')
+                                                  ->orWhere('sparepart_type', 'LIKE', '%Batt%')
+                                                  ->orWhere('sparepart_type', 'LIKE', '%Baterai%');
+                                        })
+                                        ->pluck('serial_number', 'serial_number')
+                                    )
+                                    ->searchable()
+                                    ->preload()
+                                    ->required(),
+
+                                Forms\Components\TextInput::make('drone_battery_start')->label('Drone Battery (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->required(),
+                            ]),
+                            Forms\Components\TextInput::make('battery_temp')->label('Temp (°C)')->numeric()->suffix('°C')->required(),
+                        ]),
+
+                    Forms\Components\Fieldset::make('B. System Functionality')
+                        ->schema([
+                            Forms\Components\Grid::make(2)->schema([
+                                Forms\Components\CheckboxList::make('app_readiness')
+                                    ->label('1. App Readiness')
+                                    ->options(['app_stable' => 'App stable', 'firmware_stable' => 'Firmware stable', 'safe_fly_database' => 'Safe Fly database'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('calibration')
+                                    ->label('2. Calibration')
+                                    ->options(['compass_ok' => 'Compass is OK', 'esc_ok' => 'ESC is OK', 'imu_ok' => 'IMU is OK'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('link_gps')
+                                    ->label('3. Link & GPS')
+                                    ->options(['rc_link_connected' => 'RC Link Connected', 'gps_locked' => 'GPS Locked (>10 sats)', 'video_feed_clear' => 'Video Feed Clear'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('rc_sticks_switches')
+                                    ->label('5. RC Sticks & Switches')
+                                    ->options(['sticks_ok' => 'Sticks is OK', 'dials_ok' => 'Dials is OK', 'buttons_ok' => 'Buttons is OK', 'antennas_ok' => 'Antennas is OK'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('media_gimbal')
+                                    ->label('6. Media & Gimbal')
+                                    ->options(['microsd_inserted' => 'MicroSD Inserted', 'camera_setting_ok' => 'Camera Setting is OK', 'gimbal_clamp_removed' => 'Gimbal Clamp Removed'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('app_self_check')
+                                    ->label('7. App Self-Check Result')
+                                    ->options(['battery' => 'Battery', 'gps' => 'GPS', 'remote' => 'Remote', 'camera' => 'Camera', 'sensors' => 'Sensors', 'microsd' => 'MicroSD'])
+                                    ->columns(2)->required(),
+
+                                Forms\Components\CheckboxList::make('flight_test')
+                                    ->label('8. Flight Test')
+                                    ->options(['hovering_stable' => 'Hovering Stable', 'home_point_set' => 'Home Point Set (RTH)', 'control_responsive' => 'Control Responsive'])
+                                    ->columns(2)->required(),
+                            ]),
+                        ]),
+
+                    Forms\Components\Fieldset::make('4. Battery Voltage Detail')
+                        ->schema([
+                            Forms\Components\Grid::make(4)->schema([
+                                Forms\Components\TextInput::make('low_cell_v')->label('Low Cell (V)')->numeric()->required(),
+                                Forms\Components\TextInput::make('high_cell_v')->label('High Cell (V)')->numeric()->required(),
+                                Forms\Components\TextInput::make('total_voltage_v')->label('Total Voltage (V)')->numeric()->required(),
+                                Forms\Components\TextInput::make('battery_cycles')->label('Battery Cycles')->numeric()->required(),
+                            ]),
+                        ]),
+                ]),
+
+            // --- 3. ENVIRONMENT & WEATHER ---
             Forms\Components\Section::make('C. Environment & Weather Condition')
                 ->schema([
                     Forms\Components\Grid::make(3)->schema([
@@ -202,8 +313,8 @@ class FlightLogResource extends Resource
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\CheckboxList::make('visibility')
                             ->label('Actual Visibility')
-                            ->hint(fn (Get $get) => 'Satellite: ' . ($get('visibility_km') ?? '--') . ' km')
-                            ->hintColor('primary')
+                            ->hint(fn (Get $get) => 'Satellite Data: ' . ($get('visibility_km') ?? '--') . ' km')
+                            ->hintColor('warning')
                             ->options(['clear' => 'Clear (>10km)', 'foggy' => 'Foggy', 'limited' => 'Limited (<10km)', 'smoky' => 'Smoky'])
                             ->columns(2)->required(),
                         Forms\Components\CheckboxList::make('ground_safety')
@@ -211,10 +322,12 @@ class FlightLogResource extends Resource
                             ->options(['clear_airspace' => 'Clear Airspace', 'non_magnetic' => 'Non-Magnetic Area', 'flat_surface' => 'Safe/Flat Surface', 'no_bird' => 'No Bird Activity'])
                             ->columns(2)->required(),
                     ]),
-                    Forms\Components\Hidden::make('visibility_km'),
+                    Forms\Components\TextInput::make('visibility_km')
+                        ->hidden()
+                        ->live(),
                 ]),
 
-            // --- 3. SAFETY & COMPLIANCE ---
+            // --- 4. SAFETY & COMPLIANCE ---
             Forms\Components\Section::make('D. Safety & Compliance')
                 ->schema([
                     Forms\Components\Grid::make(3)->schema([
@@ -228,122 +341,74 @@ class FlightLogResource extends Resource
                     ]),
                 ]),
 
-            // --- 4. POST-FLIGHT CHECKLIST ---
-            // KUSTOMISASI: Ditambahkan ->collapsed() agar otomatis tertutup saat form pertama kali dibuka
+            // --- 5. POST-FLIGHT CHECKLIST ---
             Forms\Components\Section::make('Post-Flight Checklist')
                 ->collapsible()
                 ->collapsed() 
                 ->schema([
                     Forms\Components\Fieldset::make('A. Post-Flight Inspection')
                         ->schema([
+                            // 3 Toggle dibuat sejajar dalam 1 baris
                             Forms\Components\Grid::make(3)->schema([
-                                Forms\Components\Toggle::make('is_motor_ok')
-                                    ->label('1. Motors is OK')
-                                    ->default(true)
-                                    ->onColor('success'),
-                                    
-                                Forms\Components\Toggle::make('is_propeller_ok')
-                                    ->label('2. Propellers is OK')
-                                    ->default(true)
-                                    ->onColor('success'),
-                                    
-                                Forms\Components\Toggle::make('is_airframe_ok')
-                                    ->label('3. Airframe is OK')
-                                    ->default(true)
-                                    ->onColor('success'),
+                                Forms\Components\Toggle::make('is_motor_ok')->label('1. Motors is OK')->onColor('success'),
+                                Forms\Components\Toggle::make('is_propeller_ok')->label('2. Propellers is OK')->onColor('success'),
+                                Forms\Components\Toggle::make('is_airframe_ok')->label('3. Airframe is OK')->onColor('success'),
                             ]),
+                            // 2 Input Baterai dibuat sejajar dalam 1 baris
                             Forms\Components\Grid::make(2)->schema([
-                                // KUSTOMISASI: ->required() dihapus (opsional / tidak wajib diisi)
-                                Forms\Components\TextInput::make('rc_battery_finish')
-                                    ->label('4. Remaining RC Batt (%)')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->suffix('%')
-                                    ->placeholder('Input sisa baterai remote controller'),
-
-                                // KUSTOMISASI: ->required() dihapus (opsional / tidak wajib diisi)
-                                Forms\Components\TextInput::make('drone_battery_finish')
-                                    ->label('5. Remaining Drone Batt (%)')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(100)
-                                    ->suffix('%')
-                                    ->placeholder('Input sisa baterai drone'),
+                                Forms\Components\TextInput::make('rc_battery_finish')->label('4. Remaining RC Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai remote controller'),
+                                Forms\Components\TextInput::make('drone_battery_finish')->label('5. Remaining Drone Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai drone'),
                             ]),
                         ]),
                 ]),
 
-            // --- 5. FLIGHT EVIDENCE GALLERY ---
-            Forms\Components\Section::make('Flight Evidence (Gallery / Camera)')
+            // --- 6. FINAL RESULT & ATTACHMENTS ---
+            Forms\Components\Section::make('Final Result & Attachments')
                 ->schema([
+                    Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Select::make('requesting_company_id')
+                            ->label('Requesting Company')
+                            ->options(\App\Models\Company::pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+
+                        Forms\Components\Select::make('requesting_department_id')
+                            ->label('Requesting Department')
+                            ->options(\App\Models\Department::pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+
+                        Forms\Components\TextInput::make('pic_requester_name')
+                            ->label('PIC / Requester Name')
+                            ->placeholder('e.g., John Doe')
+                            ->required(),
+                    ]),
+
+                    Forms\Components\Grid::make(2)->schema([
+                        Forms\Components\Select::make('result')
+                            ->label('Flight Result Status')
+                            ->options([
+                                'safe_to_fly' => 'Safe to Fly',
+                                'postpone' => 'Postpone',
+                                'cancel' => 'Cancel',
+                            ])
+                            ->required(),
+
+                        Forms\Components\Textarea::make('flight_operation_notes')
+                            ->label('Flight Operation Notes')
+                            ->placeholder('Tambahkan ringkasan hasil misi, kendala, atau penunjang teknis lainnya...')
+                            ->rows(3),
+                    ]),
+
                     Forms\Components\FileUpload::make('flight_evidences')
-                        ->label('Upload File / Capture Camera')
+                        ->label('Flight Evidence (Gallery / Camera)')
                         ->multiple()
                         ->image()
                         ->directory('flight-evidences')
                         ->columnSpanFull()
                 ]),
-
-            // --- 6. BOTTOM ACTIONS ---
-            // KUSTOMISASI: ->fullWidth() dihapus agar kedua tombol sejajar horizontal (inline side-by-side)
-            Forms\Components\Actions::make([
-                Action::make('update_location_manual')
-                    ->label('Update Lokasi & Cuaca')
-                    ->icon('heroicon-m-map-pin')
-                    ->color('success')
-                    ->extraAttributes([
-                        'x-on:click.stop' => "
-                            const apiKey = '1c7f474ddb2f26c8644c9c1b4c97db31';
-                            navigator.geolocation.getCurrentPosition(async (pos) => {
-                                const lat = pos.coords.latitude;
-                                const lng = pos.coords.longitude;
-                                \$wire.set('data.takeoff_lat', lat.toFixed(8));
-                                \$wire.set('data.takeoff_lng', lng.toFixed(8));
-                                try {
-                                    const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=\${lat}&lon=\${lng}&appid=\${apiKey}&units=metric`);
-                                    const w = await resW.json();
-                                    if (w.main) {
-                                        \$wire.set('data.temp_c', w.main.temp);
-                                        \$wire.set('data.humidity', w.main.humidity);
-                                        \$wire.set('data.wind_speed', (w.wind.speed * 3.6).toFixed(2));
-                                        
-                                        const deg = w.wind.deg;
-                                        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-                                        const dir = directions[Math.round(deg / 45) % 8];
-                                        \$wire.set('data.wind_dir', dir + ' (' + deg + '°)');
-                                        
-                                        \$wire.set('data.visibility_km', (w.visibility / 1000).toFixed(1));
-                                        if (w.weather && w.weather[0]) {
-                                            \$wire.set('data.sky_condition', w.weather[0].description.toUpperCase());
-                                        }
-                                        
-                                        new FilamentNotification().title('Data Successfully Updated!')->success().send();
-                                    }
-                                } catch (e) { console.error(e); }
-                            ]);
-                        "
-                    ]),
-
-                Action::make('flight_timer')
-                    ->label(fn (Get $get) => empty($get('takeoff_time')) ? 'Start Flight' : (empty($get('landing_time')) ? 'Stop Flight' : 'Reset Timer'))
-                    ->icon(fn (Get $get) => empty($get('takeoff_time')) ? 'heroicon-m-play' : (empty($get('landing_time')) ? 'heroicon-m-stop' : 'heroicon-m-arrow-path'))
-                    ->color(fn (Get $get) => empty($get('takeoff_time')) ? 'info' : (empty($get('landing_time')) ? 'danger' : 'gray'))
-                    ->action(function (Set $set, Get $get) {
-                        $now = now()->format('H:i:s'); 
-                        if (empty($get('takeoff_time'))) {
-                            $set('takeoff_time', $now);
-                            Notification::make()->title('Flight Started!')->body("Take-off at $now WITA")->success()->send();
-                        } elseif (empty($get('landing_time'))) {
-                            $set('landing_time', $now);
-                            self::updateDuration($set, $get);
-                            Notification::make()->title('Flight Stopped!')->body("Landing at $now WITA")->danger()->send();
-                        } else {
-                            $set('takeoff_time', null); $set('landing_time', null); $set('duration', 0);
-                            Notification::make()->title('Timer Reset')->info()->send();
-                        }
-                    }),
-            ]),
         ]);
     }
 
@@ -355,7 +420,6 @@ class FlightLogResource extends Resource
             $startTime = Carbon::parse($start);
             $endTime = Carbon::parse($end);
             if ($endTime->lessThan($startTime)) $endTime->addDay();
-            
             $set('duration', $startTime->diffInSeconds($endTime));
         }
     }
@@ -370,9 +434,7 @@ class FlightLogResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make('clickToView')
                     ->modalActions([
-                        Tables\Actions\EditAction::make()
-                            ->button()
-                            ->color('warning'),
+                        Tables\Actions\EditAction::make()->button()->color('warning'),
                     ])
                     ->extraAttributes(['class' => 'hidden']),
 
@@ -381,9 +443,7 @@ class FlightLogResource extends Resource
                         ->color('info')
                         ->icon('heroicon-m-eye')
                         ->modalActions([
-                            Tables\Actions\EditAction::make()
-                                ->button()
-                                ->color('warning'),
+                            Tables\Actions\EditAction::make()->button()->color('warning'),
                         ]),
                     
                     Tables\Actions\Action::make('downloadPdf')
@@ -393,9 +453,7 @@ class FlightLogResource extends Resource
                         ->url(fn ($record) => route('export.flight.pdf', ['id' => $record->id]))
                         ->openUrlInNewTab(),
 
-                    Tables\Actions\EditAction::make()
-                        ->color('warning'),
-                        
+                    Tables\Actions\EditAction::make()->color('warning'),
                     Tables\Actions\DeleteAction::make(),
                 ])
                 ->icon('heroicon-m-ellipsis-vertical')
