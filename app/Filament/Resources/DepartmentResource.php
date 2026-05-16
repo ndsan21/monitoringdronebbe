@@ -36,13 +36,43 @@ class DepartmentResource extends Resource
 
     public static function table(Table $table): Table
     {
-        return $table->columns([
-            Tables\Columns\TextColumn::make('company.name')->label('Company Parent')->searchable()->sortable(),
-            Tables\Columns\TextColumn::make('name')->label('Department Name')->searchable(),
-        ])->actions([
-            Tables\Actions\EditAction::make(),
-            Tables\Actions\DeleteAction::make(),
-        ]);
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('company.name')->label('Company Parent')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('name')->label('Department Name')->searchable(),
+            ])
+            ->actions([
+            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
+            Tables\Actions\ViewAction::make('clickToView')
+                ->modalActions([
+                    Tables\Actions\EditAction::make()
+                        ->button()
+                        ->color('warning'),
+                ])
+                ->extraAttributes(['class' => 'hidden']),
+
+            // 2. MENU TITIK TIGA (Ubah di bagian sini)
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\ViewAction::make()
+                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
+                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                    ->modalActions([
+                        Tables\Actions\EditAction::make()
+                            ->button()
+                            ->color('warning'),
+                    ]),
+                
+                Tables\Actions\EditAction::make()
+                    ->color('warning'),
+                    
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->icon('heroicon-m-ellipsis-vertical')
+            ->color('gray'),
+        ])
+        
+        ->recordUrl(null) 
+        ->recordAction('clickToView'); 
     }
 
     public static function getPages(): array

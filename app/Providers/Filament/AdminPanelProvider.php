@@ -19,6 +19,8 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+// FIX: Menggunakan namespace yang benar sesuai lokasi asli folder Resources Anda
+use App\Filament\Resources\Pages\Auth\CustomRegister;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -29,7 +31,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->registration()
+            // FIX: Mengunci satu halaman CustomRegister yang sah dan bersih
+            ->registration(CustomRegister::class)
             ->colors([
                 'primary' => Color::Amber,
             ])

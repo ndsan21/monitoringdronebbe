@@ -21,33 +21,27 @@ class DroneResource extends Resource
     {
         return $table
             ->columns([
-                // 1. Kolom NO (Otomatis increment)
                 Tables\Columns\TextColumn::make('index')
                     ->label('No')
                     ->rowIndex(),
 
-                // 2. Drone Name (Dari kolom model di tabel drones)
                 Tables\Columns\TextColumn::make('model')
                     ->label('Drone Name')
                     ->searchable()
                     ->sortable(),
 
-                // 3. Unit Code (Mengambil asset_id dari tabel assets)
                 Tables\Columns\TextColumn::make('asset.asset_id')
                     ->label('Unit Code')
                     ->searchable()
                     ->sortable(),
 
-                // 4. Type (Mengambil kategori dari tabel assets, pasti DRONE)
                 Tables\Columns\TextColumn::make('asset.category')
                     ->label('Type'),
 
-                // 5. Owner (Mengambil nama PT dari relasi company di dalam asset)
                 Tables\Columns\TextColumn::make('asset.company.name')
                     ->label('Owner')
                     ->searchable(),
 
-                // 6. Status Badge (Sinkron dari status aset)
                 Tables\Columns\TextColumn::make('asset.status')
                     ->label('Status')
                     ->badge()
@@ -59,20 +53,39 @@ class DroneResource extends Resource
                         default => 'gray',
                     }),
             ])
-            // Eager loading berlapis untuk mencegah query lambat (N+1 Issues)
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['asset.company']))
             ->actions([
+            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
+            Tables\Actions\ViewAction::make('clickToView')
+                ->modalActions([
+                    Tables\Actions\EditAction::make()
+                        ->button()
+                        ->color('warning'),
+                ])
+                ->extraAttributes(['class' => 'hidden']),
+
+            // 2. MENU TITIK TIGA (Ubah di bagian sini)
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\ViewAction::make()
+                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
+                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                    ->modalActions([
+                        Tables\Actions\EditAction::make()
+                            ->button()
+                            ->color('warning'),
+                    ]),
+                
                 Tables\Actions\EditAction::make()
-                    ->url(fn (Drone $record): string => $record->asset ? AssetResource::getUrl('edit', ['record' => $record->asset->id]) : '#')
-                    ->disabled(fn (Drone $record): bool => !$record->asset),
+                    ->color('warning'),
+                    
+                Tables\Actions\DeleteAction::make(),
             ])
-            ->headerActions([
-                Action::make('create_drone_via_asset')
-                    ->label('New drone')
-                    ->icon('heroicon-m-plus')
-                    ->color('primary')
-                    ->url(fn (): string => AssetResource::getUrl('create')),
-            ]);
+            ->icon('heroicon-m-ellipsis-vertical')
+            ->color('gray'),
+        ])
+        
+        ->recordUrl(null) 
+        ->recordAction('clickToView'); 
     }
 
     public static function getPages(): array

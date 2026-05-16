@@ -20,7 +20,6 @@ class AssetResource extends Resource
 
     public static function form(Form $form): Form
     {
-        // ... fungsi form Anda yang sudah bersih sebelumnya tetap biarkan saja ...
         return $form->schema([
             Forms\Components\Section::make('General Information')->schema([
                 Forms\Components\TextInput::make('asset_id')->required()->unique(ignoreRecord: true),
@@ -47,34 +46,28 @@ class AssetResource extends Resource
     {
         return $table
             ->columns([
-                // 1. Kolom NO
                 Tables\Columns\TextColumn::make('index')
                     ->label('No')
                     ->rowIndex(),
 
-                // 2. Drone Name (Menggunakan nama kustom aset)
                 Tables\Columns\TextColumn::make('asset_name')
                     ->label('Drone Name')
                     ->searchable()
                     ->sortable(),
 
-                // 3. Unit Code
                 Tables\Columns\TextColumn::make('asset_id')
                     ->label('Unit Code')
                     ->searchable()
                     ->sortable(),
 
-                // 4. Type (Menampilkan kategori DRONE / SPAREPART)
                 Tables\Columns\TextColumn::make('category')
                     ->label('Type')
                     ->sortable(),
 
-                // 5. Owner (Nama PT Perusahaan Pemilik)
                 Tables\Columns\TextColumn::make('company.name')
                     ->label('Owner')
                     ->searchable(),
 
-                // 6. Status Badge
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -87,7 +80,38 @@ class AssetResource extends Resource
                     }),
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company']))
-            ->actions([Tables\Actions\EditAction::make()]);
+            ->actions([
+            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
+            Tables\Actions\ViewAction::make('clickToView')
+                ->modalActions([
+                    Tables\Actions\EditAction::make()
+                        ->button()
+                        ->color('warning'),
+                ])
+                ->extraAttributes(['class' => 'hidden']),
+
+            // 2. MENU TITIK TIGA (Ubah di bagian sini)
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\ViewAction::make()
+                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
+                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                    ->modalActions([
+                        Tables\Actions\EditAction::make()
+                            ->button()
+                            ->color('warning'),
+                    ]),
+                
+                Tables\Actions\EditAction::make()
+                    ->color('warning'),
+                    
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->icon('heroicon-m-ellipsis-vertical')
+            ->color('gray'),
+        ])
+        
+        ->recordUrl(null) 
+        ->recordAction('clickToView'); 
     }
 
     public static function getPages(): array

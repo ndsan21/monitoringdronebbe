@@ -41,16 +41,16 @@ class UserResource extends Resource
                     ->maxLength(255),
                 Forms\Components\TextInput::make('employee_id')
                     ->label('Employee ID (NIK)')
-                    ->required(fn (string $operation) => $operation !== 'create') // Opsional saat regis awal mandiri
+                    ->required() // Opsional saat regis awal mandiri
                     ->unique(ignoreRecord: true),
                 Forms\Components\Select::make('company_id')
                     ->relationship('company', 'name')
                     ->label('Company (PT Parent)')
-                    ->required(fn (string $operation) => $operation !== 'create'),
+                    ->required(),
                 Forms\Components\Select::make('department_id')
                     ->relationship('department', 'name')
                     ->label('Department')
-                    ->required(fn (string $operation) => $operation !== 'create'),
+                    ->required(),
             ])->columns(2),
 
             // --- SECTION 2: PILOT LICENSE & SIGNATURE ---
@@ -136,15 +136,44 @@ class UserResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-            ]);
-    }
+            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
+            Tables\Actions\ViewAction::make('clickToView')
+                ->modalActions([
+                    Tables\Actions\EditAction::make()
+                        ->button()
+                        ->color('warning'),
+                ])
+                ->extraAttributes(['class' => 'hidden']),
+
+            // 2. MENU TITIK TIGA (Ubah di bagian sini)
+            Tables\Actions\ActionGroup::make([
+                Tables\Actions\ViewAction::make()
+                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
+                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                    ->modalActions([
+                        Tables\Actions\EditAction::make()
+                            ->button()
+                            ->color('warning'),
+                    ]),
+                
+                Tables\Actions\EditAction::make()
+                    ->color('warning'),
+                    
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->icon('heroicon-m-ellipsis-vertical')
+            ->color('gray'),
+        ])
+        
+        ->recordUrl(null) 
+        ->recordAction('clickToView'); 
+}
 
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListUsers::route('/'),
-            'create' => Pages\CreateUser::createRoute('/create'),
+            'create' => Pages\CreateUser::route('/create'),
             'edit' => Pages\EditUser::route('/{record}/edit'),
         ];
     }
