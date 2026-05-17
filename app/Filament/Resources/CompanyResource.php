@@ -13,8 +13,8 @@ use Filament\Tables\Table;
 class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
-    protected static ?string $navigationIcon = 'heroicon-o-building-office';
-    protected static ?string $navigationGroup = 'Master Data Corporate';
+    protected static ?string $navigationIcon = null;
+    protected static ?string $navigationGroup = 'Master Data';
 
     public static function form(Form $form): Form
     {

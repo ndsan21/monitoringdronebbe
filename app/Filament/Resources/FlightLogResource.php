@@ -12,12 +12,15 @@ use Filament\Tables\Table;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Carbon\Carbon;
+use Filament\Navigation\NavigationGroup;
 
 class FlightLogResource extends Resource
 {
     protected static ?string $model = FlightLog::class;
-    protected static ?string $navigationIcon = 'heroicon-o-paper-airplane';
+    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Log Operasional';
+    protected static ?int $navigationSort = 1; // Angka urutan makin kecil = makin atas
+    
 
     public static function form(Form $form): Form
     {
@@ -77,15 +80,32 @@ class FlightLogResource extends Resource
                             ->placeholder('Ketik lokasi... (Otomatis tersimpan jika baru)')
                             ->datalist(fn () => \App\Models\FlightLocation::query()
                                 ->whereNotNull('location_name')
-                                ->where('location_name', '!=', '')
                                 ->distinct()
                                 ->pluck('location_name')
                                 ->toArray()
                             )
                             ->required()
                             ->formatStateUsing(fn ($record) => $record?->flightLocation?->location_name)
-                            ->live(),
+                            
+                            // ◄--- KUNCI PEMBASMI ERROR SCREENSHOT MASTER ---►
+                            ->dehydrated(false) // Mencegah kolom ini ikut disisipkan ke query SQL INSERT
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if (blank($state)) {
+                                    $set('flight_location_id', null);
+                                    return;
+                                }
 
+                                // Ambil ID lokasi lama, atau otomatis buat baru jika teks tidak terdaftar di database
+                                $location = \App\Models\FlightLocation::firstOrCreate([
+                                    'location_name' => $state,
+                                ]);
+
+                                // Set nilai asli foreign key untuk disimpan ke database
+                                $set('flight_location_id', $location->id);
+                            }),
+
+                        // Pastikan hidden input penampung ID asli database tetap ada di bawahnya
                         Forms\Components\Hidden::make('flight_location_id'),
 
                         Forms\Components\Hidden::make('flight_area_name')

@@ -35,10 +35,16 @@ return new class extends Migration {
                     $table->string('photo_path')->nullable()->after('employee_id');
                 }
                 if (!Schema::hasColumn('users', 'company_id')) {
-                    $table->foreignId('company_id')->nullable()->after('photo_path')->constrained('companies');
+                    $table->foreignId('company_id')
+                        ->nullable() // ◄--- Wajib nullable
+                        ->constrained()
+                        ->nullOnDelete();
                 }
                 if (!Schema::hasColumn('users', 'department_id')) {
-                    $table->foreignId('department_id')->nullable()->after('company_id')->constrained('departments');
+                    $table->foreignId('department_id')
+    ->nullable() // ◄--- Izinkan kolom bernilai kosong jika departemennya dihapus
+    ->constrained()
+    ->nullOnDelete(); // ◄--- MANTRA UTAMA: Jika departemen dihapus, user otomatis berubah jadi NULL (tanpa error)
                 }
                 
                 $table->string('license_number')->nullable();
@@ -70,7 +76,10 @@ return new class extends Migration {
             $table->date('entry_date');
             $table->enum('status', ['ready', 'in_use', 'on_repaired', 'out_of_service'])->default('ready');
             $table->foreignId('owner_company_id')->constrained('companies');
-            $table->foreignId('department_id')->constrained('departments');
+            $table->foreignId('department_id')
+                    ->nullable() // ◄--- Berikan izin kolom boleh kosong
+                    ->constrained()
+                    ->nullOnDelete();            
             $table->date('received_date');
             $table->string('received_by');
             $table->string('photo_path')->nullable();

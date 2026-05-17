@@ -3,7 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\DroneResource\Pages;
-use App\Models\Asset; // ◄--- KUNCI: Menunjuk ke model Asset
+use App\Models\Asset; 
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -25,11 +25,11 @@ class DroneResource extends Resource
 {
     protected static ?string $model = Asset::class; 
     
-    // FIX UTAMA: Memberikan rute url unik agar tidak tabrakan dengan AssetResource
     protected static ?string $slug = 'drones'; 
 
-    protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $navigationIcon = null; // Di-null-kan sesuai request pembersihan tree-line kemarin
+    protected static ?string $navigationGroup = 'Inventory'; 
+    protected static ?int $navigationSort = 2;
     protected static ?string $navigationLabel = 'Drones';
     protected static ?string $pluralLabel = 'Drones';
     protected static ?string $modelLabel = 'Drone';
@@ -45,9 +45,10 @@ class DroneResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Drone Information')->schema([
+            // --- SECTION 1: ASSET GENERAL INFORMATION (Sesuai Gambar 2) ---
+            Forms\Components\Section::make('Asset General Information')->schema([
                 Forms\Components\TextInput::make('asset_id')
-                    ->label('Drone ID / Unit Code')
+                    ->label('Asset ID / Code')
                     ->required()
                     ->unique(ignoreRecord: true),
 
@@ -57,27 +58,42 @@ class DroneResource extends Resource
                     ->unique(ignoreRecord: true),
 
                 Forms\Components\TextInput::make('asset_name')
-                    ->label('Drone Model / Custom Name')
+                    ->label('Asset Custom Name')
                     ->required(),
 
-                // Otomatis menyuntikkan kategori DRONE saat simpan data baru
-                Forms\Components\Hidden::make('category')->default('DRONE'),
-                
-                // --- INSTALLED PARTS ANTI-MENTAL ---
+                // Mengunci visual kategori menjadi Drone Unit agar kembar dengan Gambar 2
+                Forms\Components\Select::make('category')
+                    ->label('Category Asset')
+                    ->options([
+                        'DRONE' => 'Drone Unit',
+                        'SPAREPART' => 'Sparepart & Component',
+                    ])
+                    ->default('DRONE')
+                    ->disabled() // Dikunci biar user ga bisa ganti ke sparepart di menu drone
+                    ->dehydrated() // Tetap dikirim saat klik simpan ke database
+                    ->required(),
+
+                Forms\Components\DatePicker::make('entry_date')
+                    ->label('Entry date')
+                    ->default(now())
+                    ->required(),
+            ])->columns(2),
+
+            // --- SECTION 2: DRONE TECHNICAL DETAILS (Sesuai Gambar 2) ---
+            Forms\Components\Section::make('🤖 Drone Technical Details')->schema([
+                Forms\Components\Select::make('mission_type')
+                    ->label('Mission Type')
+                    ->options([
+                        'patrol' => 'Update Pekerjaan / Patroli',
+                        'documentation' => 'Dokumentasi Acara',
+                        'mapping' => 'Orthophoto / Pemetaan'
+                    ])
+                    ->required(),
+
                 Forms\Components\Select::make('spareparts_ids')
                     ->label('Installed Parts / Components')
-                    ->placeholder('Pilih komponen yang akan dipasang ke drone ini...')
-                    ->options(function (?Asset $record) {
-                        return \App\Models\Asset::query()
-                            ->where('category', 'SPAREPART')
-                            ->where(function ($query) use ($record) {
-                                $query->whereNull('drone_id');
-                                if ($record) {
-                                    $query->orWhere('drone_id', $record->id);
-                                }
-                            })
-                            ->pluck('asset_name', 'id');
-                    })
+                    ->placeholder('Pilih komponen yang terpasang di unit drone ini...')
+                    ->options(\App\Models\Asset::where('category', 'SPAREPART')->whereNull('drone_id')->pluck('asset_name', 'id'))
                     ->multiple() 
                     ->preload()
                     ->searchable()
@@ -105,11 +121,8 @@ class DroneResource extends Resource
                         }
                     }),
 
-                Forms\Components\DatePicker::make('entry_date')->default(now())->required(),
-            ])->columns(2),
-
-            Forms\Components\Section::make('Status & Ownership')->schema([
                 Forms\Components\Select::make('status')
+                    ->label('Drone Operational Status')
                     ->options([
                         'ready' => 'Ready', 
                         'in_use' => 'In Use', 
@@ -118,11 +131,33 @@ class DroneResource extends Resource
                     ])
                     ->default('ready')
                     ->required(),
-                Forms\Components\Select::make('owner_company_id')->relationship('company', 'name')->required(),
-                Forms\Components\Select::make('department_id')->relationship('department', 'name')->required(),
-                Forms\Components\DatePicker::make('received_date')->required(),
-                Forms\Components\TextInput::make('received_by')->required(),
-                Forms\Components\FileUpload::make('photo_path')->image()->directory('asset-photos')->columnSpanFull()
+            ])->columns(2),
+
+            // --- SECTION 3: OWNERSHIP & DOCUMENTATION (Sesuai Gambar 2) ---
+            Forms\Components\Section::make('Ownership & Documentation')->schema([
+                Forms\Components\Select::make('owner_company_id')
+                    ->label('Company')
+                    ->relationship('company', 'name')
+                    ->required(),
+
+                Forms\Components\Select::make('department_id')
+                    ->label('Department')
+                    ->relationship('department', 'name')
+                    ->required(),
+
+                Forms\Components\DatePicker::make('received_date')
+                    ->label('Received date')
+                    ->required(),
+
+                Forms\Components\TextInput::make('received_by')
+                    ->label('Received by')
+                    ->required(),
+
+                Forms\Components\FileUpload::make('photo_path')
+                    ->label('Photo path')
+                    ->image()
+                    ->directory('asset-photos')
+                    ->columnSpanFull()
             ])->columns(2)
         ]);
     }
@@ -131,31 +166,27 @@ class DroneResource extends Resource
     {
         return $infolist
             ->schema([
-                // FIX TOTAL: Ganti Split dengan Grid 3 kolom agar pembagiannya pasti dan presisi di dalam modal
                 Grid::make([
                     'default' => 1,
                     'md' => 3,
                 ])->schema([
                     
-                    // --- KOLOM KIRI: KHUSUS FOTO DRONE (Memakan 1 dari 3 Kolom) ---
                     Section::make()
                         ->columnSpan(['md' => 1])
                         ->schema([
                             ImageEntry::make('photo_path')
                                 ->label('')
                                 ->hiddenLabel()
-                                ->height(320) // Mengunci tinggi foto agar terlihat gagah dan proporsional
+                                ->height(320) 
                                 ->width('100%')
                                 ->extraImgAttributes([
                                     'class' => 'rounded-xl object-cover w-full shadow-sm border border-gray-200',
                                 ]),
                         ]),
 
-                    // --- KOLOM KANAN: IDENTITAS & SPAREPARTS (Memakan 2 dari 3 Kolom) ---
                     Grid::make(1)
                         ->columnSpan(['md' => 2])
                         ->schema([
-                            // Card 1: Identitas Utama Drone
                             Section::make('Drone Identity & Status')
                                 ->columns(2)
                                 ->icon('heroicon-m-identification')
@@ -176,7 +207,6 @@ class DroneResource extends Resource
                                     TextEntry::make('department.name')->label('Department'),
                                 ]),
 
-                            // Card 2: Daftar Seluruh Komponen Terpasang
                             Section::make('Installed Parts & Components')
                                 ->icon('heroicon-m-cpu-chip')
                                 ->schema([
@@ -217,11 +247,9 @@ class DroneResource extends Resource
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company']))
             ->actions([
-                // 1. Trik Jembatan: Membuat baris Action Tersembunyi khusus melayani klik row browser
                 Tables\Actions\ViewAction::make('rowView')
                     ->extraAttributes(['class' => 'hidden']),
 
-                // 2. MENU DROPDOWN TITIK TIGA UTAMA (Semua tombol rapi di dalam sini)
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make('view')
                         ->label('View')
@@ -240,7 +268,7 @@ class DroneResource extends Resource
                 ]),
             ])
             ->recordUrl(null) 
-            ->recordAction('rowView'); // ◄--- KUNCI: Klik row diarahkan ke aksi jembatan tersembunyi
+            ->recordAction('rowView');
     }
 
     public static function getPages(): array

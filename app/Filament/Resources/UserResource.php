@@ -15,8 +15,8 @@ use Filament\Notifications\Notification;
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
-    protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationGroup = 'Control Panel';
+    protected static ?string $navigationIcon = null;
+    protected static ?string $navigationGroup = 'Master Data';
     protected static ?string $navigationLabel = 'Employee & System Access';
 
     // Otorisasi Navigasi: Hanya Super Admin dan Admin yang bisa melihat menu ini

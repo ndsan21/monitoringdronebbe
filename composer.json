@@ -7,10 +7,12 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "codeat3/blade-carbon-icons": "^2.39",
         "filament/filament": "^3.3",
         "laravel/framework": "^11.0",
         "laravel/tinker": "^2.9",
         "maatwebsite/excel": "^3.1",
+        "secondnetwork/blade-tabler-icons": "^3.44",
         "spatie/laravel-settings": "^3.8"
     },
     "require-dev": {

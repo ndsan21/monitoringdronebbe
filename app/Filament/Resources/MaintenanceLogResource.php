@@ -15,12 +15,10 @@ use Filament\Forms\Get;
 class MaintenanceLogResource extends Resource
 {
     protected static ?string $model = MaintenanceLog::class;
-    protected static ?string $navigationIcon = 'heroicon-o-wrench'; 
+    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Log Operasional';
-    protected static ?string $navigationLabel = 'Maintenance Logs';
-    protected static ?string $pluralLabel = 'Maintenance Logs';
-    protected static ?string $modelLabel = 'Maintenance Log';
-    protected static ?string $slug = 'maintenance-logs'; 
+    protected static ?int $navigationSort = 2; // Tengah
+    
 
     
     
@@ -45,13 +43,39 @@ class MaintenanceLogResource extends Resource
                         ->required(),
 
                     Forms\Components\Select::make('asset_id')
-                        ->label('Drone Unit')
-                        ->options(Asset::where('category', 'DRONE')->pluck('asset_name', 'id'))
-                        ->searchable()
-                        ->preload()
-                        ->live()
-                        ->required(),
+    ->label('Drone Unit')
+    ->options(Asset::where('category', 'DRONE')->pluck('asset_name', 'id'))
+    ->searchable()
+    ->preload()
+    ->live() // ◄--- Memastikan perubahan data terbaca real-time
+    ->required()
+    
+    // ⚡ MANTRA OTOMATISASI REPEATER: Isi otomatis list komponen saat Drone Unit dipilih
+    ->afterStateUpdated(function ($state, Forms\Set $set) {
+        // Jika drone dikosongkan, bersihkan juga isi repeater di bawahnya
+        if (blank($state)) {
+            $set('hardwareItems', []);
+            return;
+        }
 
+        // Ambil semua sparepart dari gudang yang saat ini sedang terpasang di drone ini
+        $installedParts = \App\Models\Asset::query()
+            ->where('category', 'SPAREPART')
+            ->where('drone_id', $state) // Mengunci sparepart milik drone terpilih
+            ->get();
+
+        // Format data menjadi struktur array berkelompok (Array of Arrays) sesuai standar Repeater Filament
+        $repeaterRecords = $installedParts->map(function ($part) {
+            return [
+                'asset_id' => $part->id, // Mengisi dropdown Component di dalam repeater
+                'condition' => 'good',   // Set default kondisinya menjadi 'Good' saat awal dimuat
+                'note' => null,          // Kosongkan catatan awal
+            ];
+        })->toArray();
+
+        // Suntikkan data secara paksa ke dalam Repeater 'hardwareItems' Master
+        $set('hardwareItems', $repeaterRecords);
+    }),
                     Forms\Components\Select::make('maintenance_type')
                         ->label('Maintenance Type')
                         ->options([

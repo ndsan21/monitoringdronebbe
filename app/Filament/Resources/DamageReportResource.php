@@ -15,12 +15,9 @@ use Filament\Tables\Table;
 class DamageReportResource extends Resource
 {
     protected static ?string $model = DamageReport::class;
-    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Log Operasional';
-    protected static ?string $navigationLabel = 'Damage Reports';
-    protected static ?string $pluralLabel = 'Damage Reports';
-    protected static ?string $modelLabel = 'Damage Report';
-    protected static ?string $slug = 'damage-reports';
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
