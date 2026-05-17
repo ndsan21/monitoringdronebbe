@@ -66,7 +66,7 @@ class AssetResource extends Resource
                     
                 Forms\Components\TextInput::make('sparepart_type')
                     ->label('Sparepart Type')
-                    ->placeholder('Ketik tipe sparepart... (contoh: Battery, Remote)')
+                    ->placeholder('Type sparepart type... (e.g. Battery, Remote)')
                     ->datalist(fn () => array_unique(array_merge([
                         'Frame', 'Arms', 'Landing body', 'Camera', 'Battery', 'Motor',
                         'Gimbal', 'Tas', 'Baling-baling (Propeller)', 'Remote', 'Landing Gear',
@@ -84,7 +84,7 @@ class AssetResource extends Resource
 
                 Forms\Components\Select::make('drone_id')
                     ->label('Attach to Drone Unit (Optional)')
-                    ->placeholder('Biarkan kosong jika disimpan sebagai stok gudang')
+                    ->placeholder('Leave blank if stored in warehouse warehouse')
                     ->relationship('drone', 'asset_name', fn ($query) => $query->where('category', 'DRONE'))
                     ->searchable()
                     ->preload()
@@ -111,7 +111,7 @@ class AssetResource extends Resource
 
                     Forms\Components\Select::make('spareparts_ids')
                         ->label('Installed Parts / Components')
-                        ->placeholder('Pilih komponen yang terpasang di unit drone ini...')
+                        ->placeholder('Select components installed on this drone unit...')
                         ->options(\App\Models\Asset::where('category', 'SPAREPART')->whereNull('drone_id')->pluck('asset_name', 'id'))
                         ->multiple()
                         ->preload()
@@ -161,7 +161,14 @@ class AssetResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
-                Tables\Columns\TextColumn::make('asset_name')->label('Asset Name')->searchable()->sortable(),
+                
+                // Menjadikan Nama Asset bisa di-klik dan memiliki style link primer
+                Tables\Columns\TextColumn::make('asset_name')
+                    ->label('Asset Name')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->color('primary'),
                 
                 // Badge pembeda kategori utama di tabel indeks
                 Tables\Columns\TextColumn::make('category')
@@ -175,13 +182,11 @@ class AssetResource extends Resource
                 Tables\Columns\TextColumn::make('serial_number')->label('Serial Number')->searchable(),
                 
                 Tables\Columns\TextColumn::make('drone.asset_name')
-    ->label('Installed On')
-    ->default('-')
-    ->weight(fn($record) => $record?->drone_id ? 'bold' : 'normal')
-    ->color(fn($record) => $record?->drone_id ? 'warning' : 'gray')
-    
-    // ◄--- AMANKAN BARIS 182 DENGAN TANDA TANYA SAKTI INI Master ---►
-    ->visible(fn($record) => $record?->category === 'SPAREPART'),
+                    ->label('Installed On')
+                    ->default('-')
+                    ->weight(fn($record) => $record?->drone_id ? 'bold' : 'normal')
+                    ->color(fn($record) => $record?->drone_id ? 'warning' : 'gray')
+                    ->visible(fn($record) => $record?->category === 'SPAREPART'),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
@@ -195,8 +200,27 @@ class AssetResource extends Resource
                     }),
             ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company', 'drone']))
+            ->filters([
+                // ⚡ KUNCI INTERAKTIF: MultiSelectFilter untuk menangkap klik stat dari widget atas
+                Tables\Filters\MultiSelectFilter::make('status')
+                    ->options([
+                        'ready' => 'Ready',
+                        'in_use' => 'In Use',
+                        'on_repaired' => 'On Repaired',
+                        'out_of_service' => 'Out of Service',
+                    ]),
+            ])
+            ->headerActions([
+                // ⚡ NEW ASSET BUTTON: Pindah ke sini agar berada tepat di bawah Overview widget
+                Tables\Actions\CreateAction::make()
+                    ->label('New Asset')
+                    ->icon('heroicon-m-plus')
+                    ->button(),
+            ])
             ->actions([
+                // Tombol aksi baris tabel (View Only, Edit, Delete)
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()->color('primary'), // Lempar ke halaman Read-Only view
                     Tables\Actions\EditAction::make()->color('warning'),
                     Tables\Actions\DeleteAction::make(),
                 ])
@@ -215,6 +239,8 @@ class AssetResource extends Resource
         return [
             'index' => Pages\ListAssets::route('/'),
             'create' => Pages\CreateAsset::route('/create'),
+            // ⚡ Mendaftarkan halaman viewonly agar tombol ViewAction bekerja sempurna
+            'view' => Pages\ViewAsset::route('/{record}'), 
             'edit' => Pages\EditAsset::route('/{record}/edit'),
         ];
     }

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+
 class Asset extends Model
 {
     protected $fillable = [
@@ -64,5 +65,10 @@ class Asset extends Model
     public function currentDrone(): BelongsTo
     {
         return $this->belongsTo(Asset::class, 'drone_id');
+    }
+    public function flightLogs(): HasMany
+    {
+    // ⚡ GANTI 'asset_id' MENJADI 'drone_id' SESUAI NAMA KOLOM DI TABEL FLIGHT LOGS MASTER
+    return $this->hasMany(FlightLog::class, 'drone_id'); 
     }
 }

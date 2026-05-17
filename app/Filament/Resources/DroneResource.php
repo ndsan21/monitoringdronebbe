@@ -245,6 +245,27 @@ class DroneResource extends Resource
                         default => 'gray',
                     }),
             ])
+            ->filters([
+            // ⚡ WAJIB: Pasang filter status agar ketika widget di-klik, tabel bisa merespon
+            Tables\Filters\MultiSelectFilter::make('status')
+                ->options([
+                    'ready' => 'Ready',
+                    'in_use' => 'In Use',
+                    'on_repaired' => 'On Repaired',
+                    'out_of_service' => 'Out of Service',
+                ]),
+        ])
+        ->headerActions([
+            // ⚡ Tombol New Drone sekarang nangkring rapi di bawah Overview
+            Tables\Actions\CreateAction::make()
+                ->label('New Drone')
+                ->icon('heroicon-m-plus')
+                ->button(),
+        ])
+        ->actions([
+            Tables\Actions\ViewAction::make(), // Agar bisa di-klik viewonly seperti Asset Management
+            Tables\Actions\EditAction::make(),
+        ])
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['company']))
             ->actions([
                 Tables\Actions\ViewAction::make('rowView')

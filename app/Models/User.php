@@ -8,6 +8,7 @@ use Illuminate\Notifications\Notifiable;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use App\Notifications\AccountApprovedNotification;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable implements FilamentUser
 {
@@ -58,6 +59,12 @@ class User extends Authenticatable implements FilamentUser
     {
         return (bool) $this->is_approved;
     }
+    public function flightLogs(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+    return $this->hasMany(FlightLog::class, 'pilot_id'); // Sesuaikan foreign key pilot di tabel log-nya (biasanya user_id atau pilot_id)
+    }
+
+    
 
     public function company(): BelongsTo { return $this->belongsTo(Company::class); }
     public function department(): BelongsTo { return $this->belongsTo(Department::class); }

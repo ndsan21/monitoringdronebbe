@@ -21,7 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Daftarkan model asset agar dipantau oleh AssetObserver
-        Asset::observe(AssetObserver::class);
+        
     }
 }

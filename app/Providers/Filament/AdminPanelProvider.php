@@ -32,8 +32,13 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->registration(CustomRegister::class)
+            
             ->colors([
-                'primary' => Color::Emerald,
+                // ⚡ Aksen Utama: Hijau Emerald Neon khas Command Center
+                'primary' => Color::Emerald, 
+                
+                // ⚡ KUNCI UTAMA JALUR BIRU TUA: Mengganti warna dasar abu-abu/hitam bawaan Filament
+                'gray' => Color::Slate,
             ])
             
             ->sidebarCollapsibleOnDesktop()
@@ -58,15 +63,28 @@ class AdminPanelProvider extends PanelProvider
                     ->collapsed(true),
             ])
 
+            // ... bagian atas konfigurasi panel ...
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            
+            // ⚡ KUNCI 1: Gunakan halaman bawaan Filament agar Livewire tidak error komponen
             ->pages([
-                Pages\Dashboard::class,
+                \Filament\Pages\Dashboard::class,
             ])
+            
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            
+            // ⚡ KUNCI 2: Susun urutan kustom widget kita. 
+            // Urutan ini otomatis memblokir widget Welcome/Info bawaan karena kita mengisinya sendiri!
             ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
+                \App\Filament\Widgets\DashboardHeaderWidget::class,
+                \App\Filament\Widgets\DashboardStatsOverview::class,
+                \App\Filament\Widgets\DroneHoursChart::class,
+                \App\Filament\Widgets\PilotHoursChart::class,
+                \App\Filament\Widgets\FlightDurationTrendChart::class,
+                \App\Filament\Widgets\MissionPurposeChart::class,
+                \App\Filament\Widgets\BatteryHealthChart::class,
+                \App\Filament\Widgets\RecentFlightsTable::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -86,22 +104,50 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
-            // ⚡ REVISI TOTAL: SUNTIKAN JAVASCRIPT & CSS PEMBUNUH GARIS POHON MASSAL
+            
+            // ⚡ INTEGRASI TOTAL: Menyatukan Suntikan CSS Tema Biru Tua & Pembersih Sidebar Lewat Jalur Resmi RenderHook HEAD_END
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
                     <link rel="manifest" href="/manifest.json">
                     
                     <style>
-                        /* 1. Mewarnai Judul Semua Grup Menjadi Hijau Bold */
+                        /* ======================================================= */
+                        /* TEMA WARNA BIRU TUA GELAP (COMMAND CENTER SEJATI)      */
+                        /* ======================================================= */
+                        .dark .fi-body, .dark .fi-sidebar {
+                            background-color: #050b18 !important;
+                        }
+                        .dark .fi-sidebar-nav {
+                            background-color: #070f21 !important;
+                        }
+                        .dark .fi-section, .dark .fi-wi-stats-overview-stat, .dark .fi-ta-ctn {
+                            background-color: #0b1528 !important;
+                            border-color: #112240 !important;
+                            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+                        }
+                        .dark .fi-wi-stats-overview-stat div, .dark .fi-section div, .dark .fi-ta-ctn text, .dark .fi-ta-ctn span {
+                            color: #e2e8f0 !important;
+                        }
+
+                        /* ======================================================= */
+                        /* LIGHT MODE ADJUSTMENTS                                  */
+                        /* ======================================================= */
+                        .fi-wi-stats-overview-stat {
+                            transition: all 0.2s ease-in-out;
+                        }
+                        .fi-wi-stats-overview-stat:hover {
+                            transform: translateY(-2px);
+                        }
+
+                        /* ======================================================= */
+                        /* HIASAN SIDEBAR & PEMBUNUH GARIS POHON                  */
+                        /* ======================================================= */
                         .fi-sidebar-group-label span {
                             color: #059669 !important; 
                             font-weight: 700 !important;
                         }
 
-                        /* ======================================================= */
-                        /* 2. STYLE PENGAMAN LAYOUT AGAR TIDAK CAIR/BERGESER       */
-                        /* ======================================================= */
                         .clean-sidebar-group .fi-sidebar-group-items,
                         .clean-sidebar-group ul {
                             border-inline-start-width: 0px !important;
@@ -118,10 +164,8 @@ class AdminPanelProvider extends PanelProvider
                                 document.querySelectorAll(".fi-sidebar-group").forEach(group => {
                                     const groupLabel = group.querySelector(".fi-sidebar-group-label")?.textContent?.trim();
                                     
-                                    // Targetkan eksklusif hanya grup Log Operasional dan Master Data
                                     if (groupLabel === "Log Operasional" || groupLabel === "Master Data") {
                                         
-                                        // Paksa hilangkan garis pembungkus internal
                                         group.classList.add("clean-sidebar-group");
                                         const itemsList = group.querySelector(".fi-sidebar-group-items, ul");
                                         if (itemsList) {
@@ -133,13 +177,11 @@ class AdminPanelProvider extends PanelProvider
                                         group.querySelectorAll(".fi-sidebar-item").forEach(item => {
                                             const itemText = item.querySelector(".fi-sidebar-item-label")?.textContent?.trim();
                                             
-                                            // 🟥 STRATEGI NUKLIR: Cari ikon titik bawaan Filament dan musnahkan dari DOM
                                             const nativeIcon = item.querySelector(".fi-sidebar-item-icon:not(.injected-sidebar-icon)");
                                             if (nativeIcon) {
                                                 nativeIcon.remove();
                                             }
 
-                                            // Suntikkan ikon SVG kustom jika belum disuntik sebelumnya
                                             if (!item.querySelector(".injected-sidebar-icon")) {
                                                 let svgMarkup = "";
                                                 
@@ -150,7 +192,7 @@ class AdminPanelProvider extends PanelProvider
                                                 } else if (itemText === "Damage Reports") {
                                                     svgMarkup = `<svg class="injected-sidebar-icon h-5 w-5 text-gray-400 group-hover:text-emerald-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`;
                                                 } else if (itemText === "Companies") {
-                                                    svgMarkup = `<svg class="injected-sidebar-icon h-5 w-5 text-gray-400 group-hover:text-emerald-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21h10.5V6.75H6.75V21Zm4.5-11.25h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" /></svg>`;
+                                                    svgMarkup = `<svg class="injected-sidebar-icon h-5 w-5 text-gray-400 group-hover:text-emerald-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21h10.5V6.75H6.75V21Zm4.5-11.25h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" /></svg>`;
                                                 } else if (itemText === "Departments") {
                                                     svgMarkup = `<svg class="injected-sidebar-icon h-5 w-5 text-gray-400 group-hover:text-emerald-600 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>`;
                                                 } else if (itemText === "Flight Locations") {
@@ -165,7 +207,7 @@ class AdminPanelProvider extends PanelProvider
                                                         linkTag.style.display = "flex";
                                                         linkTag.style.alignItems = "center";
                                                         linkTag.style.gap = "12px";
-                                                        linkTag.style.paddingLeft = "8px"; // Memberikan ruang pas pasca pembersihan
+                                                        linkTag.style.paddingLeft = "8px"; 
                                                         linkTag.insertAdjacentHTML("afterbegin", svgMarkup);
                                                     }
                                                 }
