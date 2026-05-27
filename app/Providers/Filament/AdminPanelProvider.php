@@ -33,6 +33,9 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->registration(CustomRegister::class)
             
+            // 🎯 FIX MUTLAK CACHE BUSTER: Logo bumi dijamin musnah!
+            ->favicon(asset('favicon.jpg?v=2')) 
+            
             // ⚡ FLUID LAYOUT: Memaksa dashboard melebar penuh 100% ke kanan-kiri monitor
             ->maxContentWidth('full') 
             
@@ -72,7 +75,6 @@ class AdminPanelProvider extends PanelProvider
             
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-                // Jajaran kustom widget terurut 
                 \App\Filament\Widgets\DashboardHeaderWidget::class,
                 \App\Filament\Widgets\DashboardStatsOverview::class,
                 \App\Filament\Widgets\DroneHoursChart::class,
@@ -97,15 +99,17 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             
+            // 🎯 PWA METADATA & INTEGRASI BACKGROUND DI HEAD
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
                     <link rel="manifest" href="/manifest.json">
+                    <meta name="theme-color" content="#1e3a8a">
+                    <meta name="apple-mobile-web-app-capable" content="yes">
+                    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+                    <link rel="apple-touch-icon" href="/icons/icon-192x192.jpg">
                     
                     <style>
-                        /* ======================================================= */
-                        /* TEMA WARNA BIRU TUA GELAP (COMMAND CENTER SEJATI)      */
-                        /* ======================================================= */
                         .dark .fi-body, .dark .fi-sidebar {
                             background-color: #050b18 !important;
                         }
@@ -121,9 +125,6 @@ class AdminPanelProvider extends PanelProvider
                             color: #e2e8f0 !important;
                         }
 
-                        /* ======================================================= */
-                        /* LIGHT MODE ADJUSTMENTS                                  */
-                        /* ======================================================= */
                         .fi-wi-stats-overview-stat {
                             transition: all 0.2s ease-in-out;
                         }
@@ -134,7 +135,6 @@ class AdminPanelProvider extends PanelProvider
 
                     <script>
                         document.addEventListener("DOMContentLoaded", () => {
-                            // ⚡ FUNGSI SAKTI: Menghapus teks kaku "Dashboard" bawaan vendor agar naik rata atas
                             const handleDashboardHeader = () => {
                                 const path = window.location.pathname.replace(/\/$/, ""); 
                                 if (path.endsWith("/admin")) {
@@ -143,16 +143,32 @@ class AdminPanelProvider extends PanelProvider
                                 }
                             };
 
-                            // Eksekusi saat pertama muat halaman
                             handleDashboardHeader();
                             
-                            // Jalankan ulang saat rute Livewire berubah
                             if (window.Livewire) {
                                 window.Livewire.hook("commit.done", () => {
                                     handleDashboardHeader();
                                 });
                             }
                         });
+                    </script>
+                '),
+            )
+            
+            // 🎯 AUTOMATIC PWA SERVICE WORKER REGISTRATION DI BODY END
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('
+                    <script>
+                        if ("serviceWorker" in navigator) {
+                            window.addEventListener("load", function() {
+                                navigator.serviceWorker.register("/sw.js").then(function(registration) {
+                                    console.log("LogDrone PWA registered successfully with scope: ", registration.scope);
+                                }, function(err) {
+                                    console.log("LogDrone PWA registration failed: ", err);
+                                });
+                            });
+                        }
                     </script>
                 '),
             );

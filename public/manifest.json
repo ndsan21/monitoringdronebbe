@@ -1,21 +1,26 @@
 {
-    "name": "Drone Monitoring System PWA",
-    "short_name": "DronePWA",
+    "name": "LogDrone Bukit Baiduri Energi",
+    "short_name": "LogDrone BBE",
+    "description": "Operational Log & Drone Maintenance Management System PT BBE",
     "start_url": "/",
-    "background_color": "#1e3a8a",
+    "scope": "/",
+    "id": "/?pwa",
+    "background_color": "#0b1329",
     "theme_color": "#1e3a8a",
     "display": "standalone",
     "orientation": "portrait",
     "icons": [
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/3120/3120015.png",
+            "src": "/icons/icon-192x192.jpg",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/jpeg",
+            "purpose": "any maskable"
         },
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/3120/3120015.png",
+            "src": "/icons/icon-512x512.jpg",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/jpeg",
+            "purpose": "any"
         }
     ]
 }

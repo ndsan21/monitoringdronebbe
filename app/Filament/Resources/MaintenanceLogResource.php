@@ -16,17 +16,14 @@ class MaintenanceLogResource extends Resource
 {
     protected static ?string $model = MaintenanceLog::class;
     
-protected static ?string $navigationGroup = 'Log Operasional';
-protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
-protected static ?int $navigationSort = 3;
-
-    
-    
+    protected static ?string $navigationGroup = 'Log Operasional';
+    protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
         return $form->schema([
-            // --- SECTION 1: GENERAL INFORMATION (Sudah Ditukar & PIC Dihapus) ---
+            // --- SECTION 1: GENERAL INFORMATION ---
             Forms\Components\Section::make('General Information')
                 ->schema([
                     Forms\Components\Select::make('technician_id')
@@ -43,39 +40,35 @@ protected static ?int $navigationSort = 3;
                         ->required(),
 
                     Forms\Components\Select::make('asset_id')
-    ->label('Drone Unit')
-    ->options(Asset::where('category', 'DRONE')->pluck('asset_name', 'id'))
-    ->searchable()
-    ->preload()
-    ->live() // ◄--- Memastikan perubahan data terbaca real-time
-    ->required()
-    
-    // ⚡ MANTRA OTOMATISASI REPEATER: Isi otomatis list komponen saat Drone Unit dipilih
-    ->afterStateUpdated(function ($state, Forms\Set $set) {
-        // Jika drone dikosongkan, bersihkan juga isi repeater di bawahnya
-        if (blank($state)) {
-            $set('hardwareItems', []);
-            return;
-        }
+                        ->label('Drone Unit')
+                        ->options(Asset::where('category', 'DRONE')->pluck('asset_name', 'id'))
+                        ->searchable()
+                        ->preload()
+                        ->live() 
+                        ->required()
+                        
+                        ->afterStateUpdated(function ($state, Forms\Set $set) {
+                            if (blank($state)) {
+                                $set('hardwareItems', []);
+                                return;
+                            }
 
-        // Ambil semua sparepart dari gudang yang saat ini sedang terpasang di drone ini
-        $installedParts = \App\Models\Asset::query()
-            ->where('category', 'SPAREPART')
-            ->where('drone_id', $state) // Mengunci sparepart milik drone terpilih
-            ->get();
+                            $installedParts = \App\Models\Asset::query()
+                                ->where('category', 'SPAREPART')
+                                ->where('drone_id', $state) 
+                                ->get();
 
-        // Format data menjadi struktur array berkelompok (Array of Arrays) sesuai standar Repeater Filament
-        $repeaterRecords = $installedParts->map(function ($part) {
-            return [
-                'asset_id' => $part->id, // Mengisi dropdown Component di dalam repeater
-                'condition' => 'good',   // Set default kondisinya menjadi 'Good' saat awal dimuat
-                'note' => null,          // Kosongkan catatan awal
-            ];
-        })->toArray();
+                            $repeaterRecords = $installedParts->map(function ($part) {
+                                return [
+                                    'asset_id' => $part->id, 
+                                    'condition' => 'good',   
+                                    'note' => null,          
+                                ];
+                            })->toArray();
 
-        // Suntikkan data secara paksa ke dalam Repeater 'hardwareItems' Master
-        $set('hardwareItems', $repeaterRecords);
-    }),
+                            $set('hardwareItems', $repeaterRecords);
+                        }),
+
                     Forms\Components\Select::make('maintenance_type')
                         ->label('Maintenance Type')
                         ->options([
@@ -101,14 +94,11 @@ protected static ?int $navigationSort = 3;
                         ->placeholder('Select an option'),
                 ])->columns(2),
 
-            // --- ⚡ FIX SCREENSHOT 3 & 4: SECTION ANALYSIS & SOFTWARE STATUS ---
+            // --- SECTION 2: ANALYSIS & SOFTWARE STATUS ---
             Forms\Components\Section::make('Analysis & Software Status')
                 ->visible(fn(Get $get) => in_array($get('maintenance_type'), ['software_update', 'full_maintenance']))
                 ->schema([
-                    // Dibagi menjadi 2 Kolom Utama (Kiri untuk App, Kanan untuk Sensors)
                     Forms\Components\Grid::make(2)->schema([
-                        
-                        // Kolom Kiri: Software & App Status
                         Forms\Components\CheckboxList::make('software_app_checklist')
                             ->label('Software & App Status')
                             ->options([
@@ -116,10 +106,9 @@ protected static ?int $navigationSort = 3;
                                 'firmware_latest' => 'Firmware Latest',
                                 'safe_fly_database' => 'Safe Fly Database OK',
                             ])
-                            ->columns(3) // ◄--- KUNCI MENYAMPING: Berbaris horizontal rata 3 kolom
+                            ->columns(3) 
                             ->required(fn(Get $get) => in_array($get('maintenance_type'), ['software_update', 'full_maintenance'])),
 
-                        // Kolom Kanan: Sensors & Calibration
                         Forms\Components\CheckboxList::make('sensors_calibration_checklist')
                             ->label('Sensors & Calibration')
                             ->options([
@@ -128,12 +117,12 @@ protected static ?int $navigationSort = 3;
                                 'vision_sensors_ok' => 'Vision Sensors OK',
                                 'compass_ok' => 'Compass OK',
                             ])
-                            ->columns(2) // ◄--- Menyeimbangkan tampilan compass yang turun ke bawah di screenshot Master
+                            ->columns(2) 
                             ->required(fn(Get $get) => in_array($get('maintenance_type'), ['software_update', 'full_maintenance'])),
                     ]),
                 ]),
 
-            // --- SECTION 3: HARDWARE INSPECTION LIST (Sejajar Menyamping Horisontal) ---
+            // --- SECTION 3: HARDWARE INSPECTION LIST ---
             Forms\Components\Section::make('Hardware Inspection List')
                 ->visible(fn(Get $get) => in_array($get('maintenance_type'), ['hardware_inspection', 'full_maintenance']))
                 ->schema([
@@ -212,6 +201,18 @@ protected static ?int $navigationSort = 3;
                         ->image()
                         ->directory('maintenance-photos'),
                 ]),
+
+            // 🎯 FIX: TOMBOL COMPACT DI POJOK KIRI BAWAH
+            Forms\Components\Actions::make([
+                Forms\Components\Actions\Action::make('go_to_edit_page')
+                    ->label('Edit Log')
+                    ->icon('heroicon-m-pencil-square')
+                    ->color('warning')
+                    ->url(fn ($record) => static::getUrl('edit', ['record' => $record]))
+                    ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\MaintenanceLogResource\Pages\ViewMaintenanceLog),
+            ])
+            ->alignment(\Filament\Support\Enums\Alignment::Left),
+
         ])->columns(1);
     }
 
@@ -227,31 +228,42 @@ protected static ?int $navigationSort = 3;
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\EditAction::make()->color('warning'),
+                    Tables\Actions\ViewAction::make()
+                        ->label('View')
+                        ->icon('heroicon-o-eye')
+                        ->color('info'),
+
+                    Tables\Actions\EditAction::make()
+                        ->label('Edit')
+                        ->color('warning'),
                     
-                    // 🎯 TOMBOL CETAK BA MASUK KE DALAM GRUP TITIK TIGA MASTER!
-Tables\Actions\Action::make('download_ba')
-    ->label('official report')
-    ->icon('heroicon-o-document-arrow-down')
-    ->color('danger')
-    ->action(function ($record) {
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.maintenance-log-ba', [
-            'records' => collect([$record])
-        ])->setPaper('A4', 'portrait');
-        
-        $droneName = $record->asset->asset_name ?? 'Drone';
-        $fileName = 'BA-Maintenance-' . str_replace(' ', '-', $droneName) . '-' . $record->id . '.pdf';
+                    Tables\Actions\Action::make('download_ba')
+                        ->label('Print BA')
+                        ->icon('heroicon-o-document-arrow-down')
+                        ->color('danger')
+                        ->action(function ($record) {
+                            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.maintenance-log-ba', [
+                                'records' => collect([$record])
+                            ])->setPaper('A4', 'portrait');
+                            
+                            $droneName = $record->asset->asset_name ?? 'Drone';
+                            $fileName = 'BA-Maintenance-' . str_replace(' ', '-', $droneName) . '-' . $record->id . '.pdf';
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf->output();
-        }, $fileName);
-    }),
+                            return response()->streamDownload(function () use ($pdf) {
+                                echo $pdf->output();
+                            }, $fileName);
+                        }),
 
-                    Tables\Actions\DeleteAction::make(),
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Delete'),
                 ])
                 ->icon('heroicon-m-ellipsis-vertical')
                 ->color('gray'),
-            ]);
+            ])
+            // 🎯 SUNTIKAN SAKTI JALUR ROW CLICK: Mengalihkan klik baris langsung menuju halaman VIEW ONLY
+            ->recordUrl(
+                fn (MaintenanceLog $record): string => static::getUrl('view', ['record' => $record])
+            );
     }
 
     public static function getPages(): array
@@ -259,6 +271,7 @@ Tables\Actions\Action::make('download_ba')
         return [
             'index' => Pages\ListMaintenanceLogs::route('/'),
             'create' => Pages\CreateMaintenanceLog::route('/create'),
+            'view' => Pages\ViewMaintenanceLog::route('/{record}'),
             'edit' => Pages\EditMaintenanceLog::route('/{record}/edit'),
         ];
     }

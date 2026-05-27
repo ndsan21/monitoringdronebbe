@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Forms\Get;
 
 class DamageReportResource extends Resource
 {
@@ -22,6 +23,7 @@ class DamageReportResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
+            // --- SECTION 1: INCIDENT & TARGET INFORMATION ---
             Forms\Components\Section::make('💥 Incident & Incident Target Information')->schema([
                 Forms\Components\Select::make('asset_id')
                     ->label('Target Asset (Drone/Part)')
@@ -42,6 +44,7 @@ class DamageReportResource extends Resource
                     ->required(),
             ])->columns(3),
 
+            // --- SECTION 2: CHRONOLOGY & SEVERITY MAPPING ---
             Forms\Components\Section::make('📋 Chronology & Severity Mapping')->schema([
                 Forms\Components\Grid::make(3)->schema([
                     Forms\Components\Select::make('damage_severity')
@@ -65,6 +68,7 @@ class DamageReportResource extends Resource
                 Forms\Components\Textarea::make('chronology')->label('Full Chronology & Incident Details')->rows(3)->required(),
             ]),
 
+            // --- SECTION 3: WORKFLOW STATUS CONTROL ---
             Forms\Components\Section::make('🔧 Workflow Status Control (Sync Master Data)')->schema([
                 Forms\Components\Grid::make(2)->schema([
                     Forms\Components\Select::make('current_status')
@@ -72,11 +76,9 @@ class DamageReportResource extends Resource
                         ->options(['reported' => 'Reported', 'on_progress' => 'On Progress', 'resolved' => 'Resolved'])
                         ->required(),
 
-                    // FIX MUTLAK: Duplikasi pemanggilan komponen sudah dihapus!
                     Forms\Components\Select::make('condition_status')
                         ->label('Condition Category Status')
                         ->options([
-                            // Pilihan 'good' dihapus total sesuai logika Master!
                             'damaged_replace' => 'Damaged / Needs Replace',
                             'out_of_service' => 'Out of Service'
                         ])
@@ -87,7 +89,6 @@ class DamageReportResource extends Resource
                     ->label('Safety Special Notes / Remarks')
                     ->rows(2),
 
-                // FIX MUTLAK: Mengganti titik (.) menjadi panah (->) sebelum multiple()
                 Forms\Components\FileUpload::make('evidences')
                     ->label('Incident Evidence Photos')
                     ->multiple() 
@@ -101,26 +102,45 @@ class DamageReportResource extends Resource
     {
         return $table
             ->columns([
-                                Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
+                Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
                 Tables\Columns\TextColumn::make('asset.asset_name')->label('Asset Name')->sortable(),
-                Tables\Columns\TextColumn::make('damage_severity')->label('Severity')->badge()->color(fn($state)=>match($state){'minor' => 'info', 'moderate' => 'warning', 'major' => 'danger'}),
+                Tables\Columns\TextColumn::make('damage_severity')
+                    ->label('Severity')
+                    ->badge()
+                    ->color(fn($state) => match($state) {
+                        'minor' => 'info', 
+                        'moderate' => 'warning', 
+                        'major' => 'danger'
+                    }),
                 Tables\Columns\TextColumn::make('current_status')->label('Progress')->badge(),
                 Tables\Columns\TextColumn::make('incident_date')->label('Incident Date')->date(),
             ])
             ->actions([
-                Tables\Actions\Action::make('cetak_pdf')
-    ->label('Cetak PDF')
-    ->icon('heroicon-o-document-arrow-down')
-    ->color('danger')
-    ->action(function ($record) {
-        $pdf = Pdf::loadView('pdf.damage-report', ['record' => $record]);
-        $pdf->setPaper('A4', 'portrait');
-        return response()->streamDownload(fn () => print($pdf->output()), 'Berita-Acara-Kerusakan-'.$record->id.'.pdf');
-    }),
                 Tables\Actions\ActionGroup::make([
-                    Tables\Actions\EditAction::make()->color('warning'),
-                    Tables\Actions\DeleteAction::make(),
-                ])->icon('heroicon-m-ellipsis-vertical')->color('gray'),
+                    
+                    // 🎯 FIX MUTLAK: Merubah 'pdf.damage-report' menjadi 'pdf.damage-report-ba' sesuai file fisik Master
+                    Tables\Actions\Action::make('print_ba')
+                        ->label('Print BA')
+                        ->icon('heroicon-o-document-arrow-down')
+                        ->color('danger')
+                        ->action(function ($record) {
+                            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.damage-report-ba', ['record' => $record]);
+                            $pdf->setPaper('A4', 'portrait');
+                            
+                            $fileName = 'Official-Report-Damage-' . $record->id . '.pdf';
+                            return response()->streamDownload(fn () => print($pdf->output()), $fileName);
+                        }),
+
+                    Tables\Actions\EditAction::make()
+                        ->label('Edit')
+                        ->color('warning'),
+                        
+                    Tables\Actions\DeleteAction::make()
+                        ->label('Delete'),
+                        
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
             ]);
     }
 
