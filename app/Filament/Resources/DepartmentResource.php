@@ -14,11 +14,9 @@ class DepartmentResource extends Resource
 {
     protected static ?string $model = Department::class;
 
-    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Master Data';
-    protected static ?string $navigationLabel = 'Departments';
-    protected static ?string $pluralLabel = 'Departments';
-    protected static ?string $modelLabel = 'Department';
+protected static ?string $navigationIcon = 'heroicon-o-briefcase';
+protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

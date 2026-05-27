@@ -15,10 +15,10 @@ use Filament\Forms\Get;
 class MaintenanceLogResource extends Resource
 {
     protected static ?string $model = MaintenanceLog::class;
-    protected static ?string $navigationIcon = null;
-    protected static ?string $navigationGroup = 'Log Operasional';
-    protected static ?int $navigationSort = 2; // Tengah
     
+protected static ?string $navigationGroup = 'Log Operasional';
+protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver';
+protected static ?int $navigationSort = 3;
 
     
     
@@ -228,8 +228,29 @@ class MaintenanceLogResource extends Resource
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\EditAction::make()->color('warning'),
+                    
+                    // 🎯 TOMBOL CETAK BA MASUK KE DALAM GRUP TITIK TIGA MASTER!
+Tables\Actions\Action::make('download_ba')
+    ->label('official report')
+    ->icon('heroicon-o-document-arrow-down')
+    ->color('danger')
+    ->action(function ($record) {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.maintenance-log-ba', [
+            'records' => collect([$record])
+        ])->setPaper('A4', 'portrait');
+        
+        $droneName = $record->asset->asset_name ?? 'Drone';
+        $fileName = 'BA-Maintenance-' . str_replace(' ', '-', $droneName) . '-' . $record->id . '.pdf';
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $fileName);
+    }),
+
                     Tables\Actions\DeleteAction::make(),
-                ])->icon('heroicon-m-ellipsis-vertical')->color('gray'),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
             ]);
     }
 

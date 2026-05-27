@@ -27,37 +27,45 @@ class AssetStatsOverview extends BaseWidget
                 ->description("🟢 {$droneReady} Ready | 🔵 {$droneInUse} In Use")
                 ->descriptionIcon('heroicon-m-cpu-chip')
                 ->color('primary')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'DRONE'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', ['tableFilters' => ['category' => ['value' => 'DRONE']]])),
 
             Stat::make('Drones Flying / In Use', $droneInUse . ' Units')
                 ->description('Active drone operations in field')
                 ->descriptionIcon('heroicon-m-paper-airplane')
                 ->color('info')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'DRONE', 'tableFilters[status][values][0]' => 'in_use'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', [
+                    'tableFilters' => ['category' => ['value' => 'DRONE'], 'status' => ['values' => ['in_use']]]
+                ])),
 
             Stat::make('Drone Under Maintenance', ($droneRepair + $droneBroken) . ' Units')
                 ->description("🟡 {$droneRepair} Repair | 🔴 {$droneBroken} Broken")
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color(($droneRepair + $droneBroken) > 0 ? 'danger' : 'gray')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'DRONE', 'tableFilters[status][values][0]' => 'on_repaired', 'tableFilters[status][values][1]' => 'out_of_service'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', [
+                    'tableFilters' => ['category' => ['value' => 'DRONE'], 'status' => ['values' => ['on_repaired', 'out_of_service']]]
+                ])),
 
             Stat::make('Total Spareparts', $totalPart . ' Pcs')
                 ->description("📦 Total inventory items in warehouse")
                 ->descriptionIcon('heroicon-m-cube')
                 ->color('primary')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'SPAREPART'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', ['tableFilters' => ['category' => ['value' => 'SPAREPART']]])),
 
             Stat::make('Spareparts Ready Stock', $partReady . ' Pcs')
                 ->description("🟢 Available items in warehouse storage")
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'SPAREPART', 'tableFilters[status][values][0]' => 'ready'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', [
+                    'tableFilters' => ['category' => ['value' => 'SPAREPART'], 'status' => ['values' => ['ready']]]
+                ])),
 
             Stat::make('Sparepart Maintenance', ($partRepair + $partBroken) . ' Pcs')
                 ->description("🟡 {$partRepair} Repair | 🔴 {$partBroken} Broken")
                 ->descriptionIcon('heroicon-m-wrench-screwdriver')
                 ->color(($partRepair + $partBroken) > 0 ? 'danger' : 'gray')
-                ->url(route('filament.admin.resources.inventory-assets.index', ['tableFilters[category][value]' => 'SPAREPART', 'tableFilters[status][values][0]' => 'on_repaired', 'tableFilters[status][values][1]' => 'out_of_service'])),
+                ->url(\App\Filament\Resources\AssetResource::getUrl('index', [
+                    'tableFilters' => ['category' => ['value' => 'SPAREPART'], 'status' => ['values' => ['on_repaired', 'out_of_service']]]
+                ])),
         ];
     }
 }

@@ -15,7 +15,7 @@ use Filament\Tables\Table;
 class DamageReportResource extends Resource
 {
     protected static ?string $model = DamageReport::class;
-    protected static ?string $navigationIcon = null;
+    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
     protected static ?string $navigationGroup = 'Log Operasional';
     protected static ?int $navigationSort = 3;
 
@@ -101,13 +101,22 @@ class DamageReportResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
+                                Tables\Columns\TextColumn::make('index')->label('No')->rowIndex(),
                 Tables\Columns\TextColumn::make('asset.asset_name')->label('Asset Name')->sortable(),
                 Tables\Columns\TextColumn::make('damage_severity')->label('Severity')->badge()->color(fn($state)=>match($state){'minor' => 'info', 'moderate' => 'warning', 'major' => 'danger'}),
                 Tables\Columns\TextColumn::make('current_status')->label('Progress')->badge(),
                 Tables\Columns\TextColumn::make('incident_date')->label('Incident Date')->date(),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+    ->label('Cetak PDF')
+    ->icon('heroicon-o-document-arrow-down')
+    ->color('danger')
+    ->action(function ($record) {
+        $pdf = Pdf::loadView('pdf.damage-report', ['record' => $record]);
+        $pdf->setPaper('A4', 'portrait');
+        return response()->streamDownload(fn () => print($pdf->output()), 'Berita-Acara-Kerusakan-'.$record->id.'.pdf');
+    }),
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\EditAction::make()->color('warning'),
                     Tables\Actions\DeleteAction::make(),

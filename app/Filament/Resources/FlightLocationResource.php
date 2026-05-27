@@ -14,11 +14,9 @@ class FlightLocationResource extends Resource
 {
     protected static ?string $model = FlightLocation::class;
 
-    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Master Data';
-    protected static ?string $navigationLabel = 'Flight Locations';
-    protected static ?string $pluralLabel = 'Flight Locations';
-    protected static ?string $modelLabel = 'Flight Location';
+protected static ?string $navigationIcon = 'monoicon-location';
+protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {

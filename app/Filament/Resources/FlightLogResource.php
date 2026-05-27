@@ -13,15 +13,18 @@ use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Carbon\Carbon;
 use Filament\Navigation\NavigationGroup;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Tables\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 
 class FlightLogResource extends Resource
 {
     protected static ?string $model = FlightLog::class;
-    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Log Operasional';
-    protected static ?int $navigationSort = 1; // Angka urutan makin kecil = makin atas
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static ?int $navigationSort = 1; 
     
-
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -54,7 +57,6 @@ class FlightLogResource extends Resource
                             ->required()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if ($state) {
-                                    // 1. Otomatis cari RC yang terhubung ke drone ini di tabel assets
                                     $rc = \App\Models\Asset::query()
                                         ->where('drone_id', $state)
                                         ->where('category', 'SPAREPART')
@@ -65,8 +67,6 @@ class FlightLogResource extends Resource
                                         ->first();
 
                                     $set('rc_serial_id', $rc?->serial_number);
-                                    
-                                    // Kosongkan pilihan baterai agar pilot memilih manual komponen yang dipakai saat itu
                                     $set('battery_serial_id', null); 
                                 } else {
                                     $set('rc_serial_id', null);
@@ -74,7 +74,6 @@ class FlightLogResource extends Resource
                                 }
                             }),
                         
-                        // FIX LOGIKA LOKASI: Diubah menjadi jembatan teks string agar tidak merusak foreign key integer database
                         Forms\Components\TextInput::make('location_name_bridge')
                             ->label('Flight Location')
                             ->placeholder('Ketik lokasi... (Otomatis tersimpan jika baru)')
@@ -86,26 +85,19 @@ class FlightLogResource extends Resource
                             )
                             ->required()
                             ->formatStateUsing(fn ($record) => $record?->flightLocation?->location_name)
-                            
-                            // ◄--- KUNCI PEMBASMI ERROR SCREENSHOT MASTER ---►
-                            ->dehydrated(false) // Mencegah kolom ini ikut disisipkan ke query SQL INSERT
+                            ->dehydrated(false) 
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if (blank($state)) {
                                     $set('flight_location_id', null);
                                     return;
                                 }
-
-                                // Ambil ID lokasi lama, atau otomatis buat baru jika teks tidak terdaftar di database
                                 $location = \App\Models\FlightLocation::firstOrCreate([
                                     'location_name' => $state,
                                 ]);
-
-                                // Set nilai asli foreign key untuk disimpan ke database
                                 $set('flight_location_id', $location->id);
                             }),
 
-                        // Pastikan hidden input penampung ID asli database tetap ada di bawahnya
                         Forms\Components\Hidden::make('flight_location_id'),
 
                         Forms\Components\Hidden::make('flight_area_name')
@@ -177,7 +169,6 @@ class FlightLogResource extends Resource
 
                         Forms\Components\Fieldset::make('Take Off Geolocation')->schema([
                             Forms\Components\TextInput::make('takeoff_lat')->numeric()->required()->id('takeoff_lat')
-                                // FIX EROR [$data]: Pengaman closure PHP agar tidak disuntikkan ke halaman tabel utama
                                 ->extraAttributes(function ($livewire) {
                                     if (! property_exists($livewire, 'data')) {
                                         return [];
@@ -247,7 +238,8 @@ class FlightLogResource extends Resource
                         ]),
 
                     Forms\Components\Fieldset::make('4. Remote & Battery Status')
-                        ->schema([
+                    ->disabled(fn (string $operation): bool => $operation === 'edit')    
+                    ->schema([
                             Forms\Components\Grid::make(4)->schema([
                                 Forms\Components\Select::make('rc_serial_id')
                                     ->label('RC Serial/ID')
@@ -298,40 +290,13 @@ class FlightLogResource extends Resource
                     Forms\Components\Fieldset::make('B. System Functionality')
                         ->schema([
                             Forms\Components\Grid::make(2)->schema([
-                                Forms\Components\CheckboxList::make('app_readiness')
-                                    ->label('1. App Readiness')
-                                    ->options(['app_stable' => 'App stable', 'firmware_stable' => 'Firmware stable', 'safe_fly_database' => 'Safe Fly database'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('calibration')
-                                    ->label('2. Calibration')
-                                    ->options(['compass_ok' => 'Compass is OK', 'esc_ok' => 'ESC is OK', 'imu_ok' => 'IMU is OK'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('link_gps')
-                                    ->label('3. Link & GPS')
-                                    ->options(['rc_link_connected' => 'RC Link Connected', 'gps_locked' => 'GPS Locked (>10 sats)', 'video_feed_clear' => 'Video Feed Clear'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('rc_sticks_switches')
-                                    ->label('5. RC Sticks & Switches')
-                                    ->options(['sticks_ok' => 'Sticks is OK', 'dials_ok' => 'Dials is OK', 'buttons_ok' => 'Buttons is OK', 'antennas_ok' => 'Antennas is OK'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('media_gimbal')
-                                    ->label('6. Media & Gimbal')
-                                    ->options(['microsd_inserted' => 'MicroSD Inserted', 'camera_setting_ok' => 'Camera Setting is OK', 'gimbal_clamp_removed' => 'Gimbal Clamp Removed'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('app_self_check')
-                                    ->label('7. App Self-Check Result')
-                                    ->options(['battery' => 'Battery', 'gps' => 'GPS', 'remote' => 'Remote', 'camera' => 'Camera', 'sensors' => 'Sensors', 'microsd' => 'MicroSD'])
-                                    ->columns(2)->required(),
-
-                                Forms\Components\CheckboxList::make('flight_test')
-                                    ->label('8. Flight Test')
-                                    ->options(['hovering_stable' => 'Hovering Stable', 'home_point_set' => 'Home Point Set (RTH)', 'control_responsive' => 'Control Responsive'])
-                                    ->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('app_readiness')->label('1. App Readiness')->options(['app_stable' => 'App stable', 'firmware_stable' => 'Firmware stable', 'safe_fly_database' => 'Safe Fly database'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('calibration')->label('2. Calibration')->options(['compass_ok' => 'Compass is OK', 'esc_ok' => 'ESC is OK', 'imu_ok' => 'IMU is OK'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('link_gps')->label('3. Link & GPS')->options(['rc_link_connected' => 'RC Link Connected', 'gps_locked' => 'GPS Locked (>10 sats)', 'video_feed_clear' => 'Video Feed Clear'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('rc_sticks_switches')->label('5. RC Sticks & Switches')->options(['sticks_ok' => 'Sticks is OK', 'dials_ok' => 'Dials is OK', 'buttons_ok' => 'Buttons is OK', 'antennas_ok' => 'Antennas is OK'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('media_gimbal')->label('6. Media & Gimbal')->options(['microsd_inserted' => 'MicroSD Inserted', 'camera_setting_ok' => 'Camera Setting is OK', 'gimbal_clamp_removed' => 'Gimbal Clamp Removed'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('app_self_check')->label('7. App Self-Check Result')->options(['battery' => 'Battery', 'gps' => 'GPS', 'remote' => 'Remote', 'camera' => 'Camera', 'sensors' => 'Sensors', 'microsd' => 'MicroSD'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('flight_test')->label('8. Flight Test')->options(['hovering_stable' => 'Hovering Stable', 'home_point_set' => 'Home Point Set (RTH)', 'control_responsive' => 'Control Responsive'])->columns(2)->required(),
                             ]),
                         ]),
 
@@ -348,6 +313,7 @@ class FlightLogResource extends Resource
 
             // --- 3. ENVIRONMENT & WEATHER ---
             Forms\Components\Section::make('C. Environment & Weather Condition')
+                ->disabled(fn (string $operation): bool => $operation === 'edit')
                 ->schema([
                     Forms\Components\Grid::make(3)->schema([
                         Forms\Components\TextInput::make('temp_c')->label('Temp (°C)')->numeric()->required(),
@@ -368,7 +334,6 @@ class FlightLogResource extends Resource
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\CheckboxList::make('visibility')
                             ->label('Actual Visibility')
-                            // FIX AMAN [$data]: Proteksi total properti di halaman tabel index
                             ->hint(function (Get $get, $livewire) {
                                 if (! property_exists($livewire, 'data')) {
                                     return 'Satellite Data: -- km';
@@ -384,9 +349,7 @@ class FlightLogResource extends Resource
                             ->options(['clear_airspace' => 'Clear Airspace', 'non_magnetic' => 'Non-Magnetic Area', 'flat_surface' => 'Safe/Flat Surface', 'no_bird' => 'No Bird Activity'])
                             ->columns(2)->required(),
                     ]),
-                    Forms\Components\TextInput::make('visibility_km')
-                        ->hidden()
-                        ->live(),
+                    Forms\Components\TextInput::make('visibility_km')->hidden()->live(),
                 ]),
 
             // --- 4. SAFETY & COMPLIANCE ---
@@ -442,7 +405,7 @@ class FlightLogResource extends Resource
                             ->required(),
 
                         Forms\Components\TextInput::make('pic_requester_name')
-                            ->label('PIC / Requester Name')
+                            ->label('Requester by')
                             ->placeholder('e.g., John Doe')
                             ->required(),
                     ]),
@@ -499,12 +462,14 @@ class FlightLogResource extends Resource
                     ]),
             ])
             ->actions([
+                // ⚡ Trik menyembunyikan Action default agar tidak bentrok
                 Tables\Actions\ViewAction::make('clickToView')
                     ->modalActions([
                         Tables\Actions\EditAction::make()->button()->color('warning'),
                     ])
                     ->extraAttributes(['class' => 'hidden']),
 
+                // ⚡ GRUP AKSI TITIK TIGA (Semua tombol berkumpul di sini dengan rapi)
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make()
                         ->color('info')
@@ -513,12 +478,16 @@ class FlightLogResource extends Resource
                             Tables\Actions\EditAction::make()->button()->color('warning'),
                         ]),
                     
-                    Tables\Actions\Action::make('downloadPdf')
-                        ->label('Berita Acara')
+                    // ⚡ TOMBOL DOMPDF SAKTI
+                    Tables\Actions\Action::make('cetak_pdf')
+                        ->label('Cetak Berita Acara')
                         ->icon('heroicon-o-document-arrow-down')
-                        ->color('info')
-                        ->url(fn ($record) => route('export.flight.pdf', ['id' => $record->id]))
-                        ->openUrlInNewTab(),
+                        ->color('danger')
+                        ->action(function ($record) {
+                            $pdf = Pdf::loadView('pdf.flight-log', ['record' => $record]);
+                            $pdf->setPaper('A4', 'portrait');
+                            return response()->streamDownload(fn () => print($pdf->output()), 'BA-FlightLog-'.$record->id.'.pdf');
+                        }),
 
                     Tables\Actions\EditAction::make()->color('warning'),
                     Tables\Actions\DeleteAction::make(),

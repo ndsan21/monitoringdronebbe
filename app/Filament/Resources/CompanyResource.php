@@ -13,8 +13,9 @@ use Filament\Tables\Table;
 class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
-    protected static ?string $navigationIcon = null;
     protected static ?string $navigationGroup = 'Master Data';
+protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
+protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {
@@ -64,7 +65,23 @@ class CompanyResource extends Resource
                 Tables\Actions\EditAction::make()
                     ->color('warning'),
                     
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+    ->before(function ($record, Tables\Actions\DeleteAction $action) {
+        // ⚡ Cek apakah PT ini masih dipakai di tabel Asset?
+        $assetTerikat = \App\Models\Asset::where('owner_company_id', $record->id)->count();
+        
+        if ($assetTerikat > 0) {
+            // ⚡ Munculkan pop-up merah elegan di pojok kanan atas
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Gagal Menghapus PT!')
+                ->body("PT ini tidak bisa dihapus karena masih digunakan oleh {$assetTerikat} data Aset. Silakan pindahkan atau hapus asetnya terlebih dahulu.")
+                ->send();
+            
+            // ⚡ Batalkan proses hapus secara paksa agar tidak layar merah!
+            $action->halt();
+        }
+    }),
             ])
             ->icon('heroicon-m-ellipsis-vertical')
             ->color('gray'),
