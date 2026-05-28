@@ -21,6 +21,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
 use App\Filament\Resources\Pages\Auth\CustomRegister;
 use Filament\Navigation\NavigationGroup;
+use App\Filament\Pages\Auth\Login;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -32,6 +33,27 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login(\App\Filament\Pages\Auth\Login::class)
             ->registration(CustomRegister::class)
+            
+            // 🎯 LOGO & BRANDING DINAMIS (Menggantikan teks "Laravel")
+            // 🎯 LOGO & BRANDING DINAMIS (Hierarki Diperbarui)
+            ->brandLogo(function () {
+                $user = auth()->user();
+                
+                // Posisikan GRUP LANGGANAN di nomor 1 agar menjadi prioritas utama!
+                if ($user && $user->subscriptionGroup && $user->subscriptionGroup->logo_path) {
+                    return asset('storage/' . $user->subscriptionGroup->logo_path);
+                }
+                
+                // Nomor 2: Jika Grup tidak punya logo, baru pakai logo spesifik PT/Company
+                if ($user && $user->company && $user->company->logo_path) {
+                    return asset('storage/' . $user->company->logo_path);
+                }
+
+                // Jika belum login / data kosong, tampilkan logo default aplikasi Anda
+                return asset('LOGO LOGDRONE.png'); 
+            })
+            ->brandLogoHeight('2.5rem') // Mengatur tinggi logo agar proporsional di sidebar
+            ->brandName('LogDrone System BBE') // Teks cadangan jika logo tidak ditemukan / gagal render
             
             // 🎯 Favicon PWA (.jpg)
             ->favicon(asset('logdrone-logo.jpg?v=999')) 
@@ -164,7 +186,7 @@ class AdminPanelProvider extends PanelProvider
                             .fi-simple-layout main {
                                 width: 100% !important;
                                 max-width: 440px !important; 
-                                margin: 0 0 0 10s% !important; 
+                                margin: 0 0 0 10% !important; 
                                 padding: 0 !important;
                                 background: transparent !important;
                                 position: relative !important;
@@ -248,18 +270,6 @@ class AdminPanelProvider extends PanelProvider
                                 margin-top: 15px !important;
                                 box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
                             }
-                            
-                            /* Footer Hak Cipta */
-                            .fi-simple-layout::after {
-                                content: "LOGDRONE OPERATION SYSTEM © 2026 PRIVACY POLICY" !important;
-                                position: absolute !important;
-                                bottom: 25px !important;
-                                left: 10% !important;
-                                font-size: 0.75rem !important;
-                                color: #475569 !important;
-                                letter-spacing: 0.05em !important;
-                                z-index: 10 !important;
-                            }
                         }
 
                         /* ======================================================= */
@@ -322,15 +332,36 @@ class AdminPanelProvider extends PanelProvider
             )
             
             // 🎯 SERVICE WORKER REGISTRATION FOR AUTOMATIC PWA
+            // 🎯 SERVICE WORKER REGISTRATION FOR AUTOMATIC PWA & IMAGE CACHE BYPASS
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => Blade::render('
                     <script>
                         if ("serviceWorker" in navigator) {
                             window.addEventListener("load", function() {
-                                navigator.serviceWorker.register("/sw.js");
+                                navigator.serviceWorker.register("/sw.js").then(function(registration) {
+                                    // Cek pembaharuan service worker secara berkala agar cache tidak mengunci gambar
+                                    registration.update();
+                                }).catch(function(err) {
+                                    console.log("ServiceWorker registration failed: ", err);
+                                });
                             });
                         }
+
+                        // 🔥 FORCED RE-RENDER FOR ANIMATED GIFS
+                        // Trik memaksa browser merender ulang siklus frame GIF di sidebar agar tidak freeze
+                        document.addEventListener("DOMContentLoaded", () => {
+                            setTimeout(() => {
+                                const sidebarLogos = document.querySelectorAll(".fi-sidebar-header img, .fi-logo img");
+                                sidebarLogos.forEach(img => {
+                                    const currentSrc = img.src;
+                                    if (currentSrc.includes(".gif")) {
+                                        // Suntikkan timestamp unik tipis agar browser memuat ulang siklus animasi murni
+                                        img.src = currentSrc.split("?")[0] + "?anim=" + new Date().getTime();
+                                    }
+                                });
+                            }, 300); // Delay tipis menunggu dom Filament siap
+                        });
                     </script>
                 '),
             );

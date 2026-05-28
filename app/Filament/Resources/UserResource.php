@@ -9,20 +9,35 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms\Get;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Notifications\Notification;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationGroup = 'Master Data';
+    protected static ?string $navigationGroup = 'Manajemen Kru';
+    protected static ?string $navigationLabel = 'Pilot & Staff';
+    protected static ?string $modelLabel = 'Pilot & Staff';
     protected static ?int $navigationSort = 1;
 
-    // Otorisasi Navigasi: Hanya Super Admin dan Admin yang bisa melihat menu ini
+    // 🔒 Otorisasi Navigasi
     public static function shouldRegisterNavigation(): bool
     {
         return in_array(auth()->user()?->role, ['super_admin', 'admin']);
+    }
+
+    // 🔒 Filter Data: Admin PT hanya melihat kru di PT-nya sendiri
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        
+        if (!auth()->user()->isSuperAdmin()) {
+            $query->where('company_id', auth()->user()->company_id)
+                  ->where('role', '!=', 'super_admin');
+        }
+
+        return $query;
     }
 
     public static function form(Form $form): Form
@@ -41,17 +56,36 @@ class UserResource extends Resource
                     ->maxLength(255),
                 Forms\Components\TextInput::make('employee_id')
                     ->label('Employee ID (NIK)')
-                    ->required() // Opsional saat regis awal mandiri
+                    ->required()
                     ->unique(ignoreRecord: true),
-                Forms\Components\Select::make('company_id')
-                    ->relationship('company', 'name')
-                    ->label('Company (PT Parent)')
+                
+                // Input Grup: Tetap dikunci ke grup Nadia (BBE-KMIA) agar pilot tidak nyasar ke grup kompetitor
+                Forms\Components\Select::make('subscription_group_id')
+                    ->relationship('subscriptionGroup', 'group_name')
+                    ->label('Grup (Subscription Group)')
+                    ->default(fn () => auth()->user()->subscription_group_id)
+                    ->disabled(fn () => !auth()->user()->isSuperAdmin())
+                    ->dehydrated()
                     ->required(),
+
+                // Input PT: Dibuka gemboknya! Nadia bisa memilih, tapi pilihannya dibatasi hanya PT di dalam grupnya saja
+                Forms\Components\Select::make('company_id')
+                    ->relationship(
+                        'company', 
+                        'name',
+                        fn (Builder $query) => auth()->user()->isSuperAdmin()
+                            ? $query
+                            : $query->where('subscription_group_id', auth()->user()->subscription_group_id) // ◄--- KUNCI: Filter agar hanya muncul PT milik grup ini
+                    )
+                    ->label('Company (PT Parent)')
+                    ->default(fn () => auth()->user()->company_id) // Default awal ke PT Nadia, tapi bebas diubah ke PT lain dalam grup yang sama
+                    ->required(),
+                    
                 Forms\Components\Select::make('department_id')
                     ->relationship('department', 'name')
                     ->label('Department')
                     ->required(),
-            ])->columns(2),
+            ]), 
 
             // --- SECTION 2: PILOT LICENSE & SIGNATURE ---
             Forms\Components\Section::make('Pilot License & Certification')->schema([
@@ -71,9 +105,8 @@ class UserResource extends Resource
                     ->directory('signatures') 
                     ->maxSize(1024) 
                     ->placeholder('Unggah file TTD digital transparan (.png)')
-                    ->imageEditor() 
-                    ->columnSpanFull(), 
-            ])->columns(3),
+                    ->imageEditor(), 
+            ]),
 
             // --- SECTION 3: SYSTEM ACCESS ---
             Forms\Components\Section::make('System Access Authorization')
@@ -82,24 +115,34 @@ class UserResource extends Resource
                         ->email()
                         ->required()
                         ->unique(ignoreRecord: true),
+                    
                     Forms\Components\Select::make('role')
-                        ->options([
-                            'super_admin' => 'Super Admin',
-                            'admin' => 'Admin',
-                            'pilot' => 'Drone Pilot'
-                        ])
-                        ->disabled(fn () => !auth()->user()?->isSuperAdmin()) 
+                        ->options(function () {
+                            if (auth()->user()->isSuperAdmin()) {
+                                return [
+                                    'super_admin' => 'Super Admin',
+                                    'admin' => 'Admin PT',
+                                    'pilot' => 'Drone Pilot'
+                                ];
+                            }
+                            return [
+                                'admin' => 'Admin PT',
+                                'pilot' => 'Drone Pilot'
+                            ];
+                        })
                         ->required(),
+                        
                     Forms\Components\Toggle::make('is_approved')
                         ->label('Approve User Access')
-                        ->default(false),
+                        ->default(true), 
+                        
                     Forms\Components\TextInput::make('password')
                         ->password()
                         ->dehydrateStateUsing(fn (?string $state) => filled($state) ? bcrypt($state) : null)
                         ->required(fn (string $operation) => $operation === 'create')
                         ->dehydrated(fn (?string $state) => filled($state))
                         ->label('Password / Update Password'),
-                ])->columns(2),
+                ]), 
         ]);
     }
 
@@ -110,20 +153,32 @@ class UserResource extends Resource
                 Tables\Columns\ImageColumn::make('photo_path')->label('Photo')->circular(),
                 Tables\Columns\TextColumn::make('full_name')->label('Name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('employee_id')->label('NIK')->searchable(),
-                Tables\Columns\TextColumn::make('company.name')->label('PT'),
-                Tables\Columns\BadgeColumn::make('role')
+                
+                // 🛠️ FIX: Menggunakan 'group_name' di tabel
+                Tables\Columns\TextColumn::make('subscriptionGroup.group_name')
+                    ->label('Grup')
+                    ->badge()
+                    ->color('danger')
+                    ->toggleable(isToggledHiddenByDefault: fn () => !auth()->user()->isSuperAdmin()),
+
+                Tables\Columns\TextColumn::make('company.name')
+                    ->label('PT')
+                    ->badge()
+                    ->color('info')
+                    ->toggleable(isToggledHiddenByDefault: fn () => !auth()->user()->isSuperAdmin()), 
+                
+                Tables\Columns\TextColumn::make('role')
+                    ->badge()
                     ->colors([
                         'danger' => 'super_admin',
                         'warning' => 'admin',
                         'success' => 'pilot',
                     ]),
                 
-                // INTERSEPTOR TRIGGER EMAIL NOTIFIKASI
                 Tables\Columns\ToggleColumn::make('is_approved')
                     ->label('Approved')
                     ->disabled(fn () => !auth()->user()?->isSuperAdmin() && !auth()->user()?->isAdmin())
                     ->afterStateUpdated(function (User $record, $state) {
-                        // Jika toggle diaktifkan (true), kirim email notifikasi
                         if ($state === true) {
                             $record->notify(new \App\Notifications\AccountApprovedNotification());
                             
@@ -136,38 +191,35 @@ class UserResource extends Resource
                     }),
             ])
             ->actions([
-            // 1. ACTION TERSEMBUNYI (Tetap biarkan untuk handle klik baris)
-            Tables\Actions\ViewAction::make('clickToView')
-                ->modalActions([
-                    Tables\Actions\EditAction::make()
-                        ->button()
-                        ->color('warning'),
-                ])
-                ->extraAttributes(['class' => 'hidden']),
-
-            // 2. MENU TITIK TIGA (Ubah di bagian sini)
-            Tables\Actions\ActionGroup::make([
-                Tables\Actions\ViewAction::make()
-                    ->color('info') // ◄--- KUNCI UTAMA: Membuat teks & ikon View di dalam dropdown berwarna BIRU
-                    ->icon('heroicon-m-eye') // Menambahkan ikon mata agar semakin jelas
+                Tables\Actions\ViewAction::make('clickToView')
                     ->modalActions([
                         Tables\Actions\EditAction::make()
                             ->button()
                             ->color('warning'),
-                    ]),
-                
-                Tables\Actions\EditAction::make()
-                    ->color('warning'),
+                    ])
+                    ->extraAttributes(['class' => 'hidden']),
+
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\ViewAction::make()
+                        ->color('info')
+                        ->icon('heroicon-m-eye') 
+                        ->modalActions([
+                            Tables\Actions\EditAction::make()
+                                ->button()
+                                ->color('warning'),
+                        ]),
                     
-                Tables\Actions\DeleteAction::make(),
+                    Tables\Actions\EditAction::make()
+                        ->color('warning'),
+                        
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical')
+                ->color('gray'),
             ])
-            ->icon('heroicon-m-ellipsis-vertical')
-            ->color('gray'),
-        ])
-        
-        ->recordUrl(null) 
-        ->recordAction('clickToView'); 
-}
+            ->recordUrl(null) 
+            ->recordAction('clickToView'); 
+    }
 
     public static function getPages(): array
     {

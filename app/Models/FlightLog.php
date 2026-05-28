@@ -46,37 +46,54 @@ class FlightLog extends Model
         'is_propeller_ok' => 'boolean',
         'is_airframe_ok' => 'boolean',
     ];
+// --- RELASI DATABASE (FIX NAMESPACE ERROR) ---
 
-    // --- DI BAWAH INI ADALAH RELASI ANDA (Jangan dihapus, biarkan seperti aslinya) ---
-    public function pilot()
+    /**
+     * Relasi ke Asset (Data Drone yang diterbangkan)
+     */
+    public function drone(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        // Mengarah ke Asset::class karena data drone ada di tabel assets sekarang
+        return $this->belongsTo(Asset::class, 'drone_id'); 
+    }
+
+    /**
+     * Relasi ke User (Pilot Utama)
+     */
+    public function pilot(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'pilot_id');
     }
 
-    public function coPilot()
+    /**
+     * Relasi ke User (Co-Pilot / Asisten)
+     */
+    public function coPilot(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'co_pilot_id');
     }
 
-    public function drone(): \Illuminate\Database\Eloquent\Relations\BelongsTo
-{
-    // Mengarah ke Asset::class karena data drone ada di tabel assets sekarang
-    return $this->belongsTo(Asset::class, 'drone_id'); 
-}
+    /**
+     * Relasi ke User (Pihak yang meminta penerbangan)
+     */
+    public function requester(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requester_id');
+    }
 
-    public function flightLocation()
+    /**
+     * Relasi ke User (Pihak yang memberikan izin / otorisasi)
+     */
+    public function authorizedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'authorized_by_id');
+    }
+
+    /**
+     * Relasi ke Master Data Lokasi
+     */
+    public function flightLocation(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(FlightLocation::class, 'flight_location_id');
     }
-
-    public function company()
-    {
-        return $this->belongsTo(Company::class, 'requesting_company_id');
-    }
-
-    public function department()
-    {
-        return $this->belongsTo(Department::class, 'requesting_department_id');
-    }
-    
 }

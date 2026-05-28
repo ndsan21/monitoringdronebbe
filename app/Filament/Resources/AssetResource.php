@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 class AssetResource extends Resource
 {
     protected static ?string $model = Asset::class;
+    protected static ?string $slug = 'inventory-assets';
     
     protected static ?string $navigationLabel = 'All Assets';
     protected static ?string $modelLabel = 'Asset';

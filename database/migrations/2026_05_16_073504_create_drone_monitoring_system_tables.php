@@ -34,17 +34,20 @@ return new class extends Migration {
                 if (!Schema::hasColumn('users', 'photo_path')) {
                     $table->string('photo_path')->nullable()->after('employee_id');
                 }
+                
+                // MENGEMBALIKAN KOLOM company_id UNTUK SAAS MULTI-TENANCY
                 if (!Schema::hasColumn('users', 'company_id')) {
                     $table->foreignId('company_id')
-                        ->nullable() // ◄--- Wajib nullable
+                        ->nullable()
                         ->constrained()
                         ->nullOnDelete();
                 }
+
                 if (!Schema::hasColumn('users', 'department_id')) {
                     $table->foreignId('department_id')
-    ->nullable() // ◄--- Izinkan kolom bernilai kosong jika departemennya dihapus
-    ->constrained()
-    ->nullOnDelete(); // ◄--- MANTRA UTAMA: Jika departemen dihapus, user otomatis berubah jadi NULL (tanpa error)
+                        ->nullable() 
+                        ->constrained()
+                        ->nullOnDelete(); 
                 }
                 
                 $table->string('license_number')->nullable();
@@ -77,7 +80,7 @@ return new class extends Migration {
             $table->enum('status', ['ready', 'in_use', 'on_repaired', 'out_of_service'])->default('ready');
             $table->foreignId('owner_company_id')->constrained('companies');
             $table->foreignId('department_id')
-                    ->nullable() // ◄--- Berikan izin kolom boleh kosong
+                    ->nullable() 
                     ->constrained()
                     ->nullOnDelete();            
             $table->date('received_date');
@@ -156,7 +159,6 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        // 7. MAINTENANCE LOGS
         // 7. MAINTENANCE LOGS (STRUKTUR SINKRON CHECKBOX DIGITAL)
         Schema::create('maintenance_logs', function (Blueprint $table) {
             $table->id();
@@ -176,7 +178,6 @@ return new class extends Migration {
             $table->json('photos_evidence')->nullable();
             $table->timestamps();
         });
-
         
         // 8. MAINTENANCE HARDWARE ITEMS (PERBAIKAN STRUKTUR RELASI ASSET)
         Schema::create('maintenance_hardware_items', function (Blueprint $table) {
@@ -201,6 +202,19 @@ return new class extends Migration {
         Schema::dropIfExists('flight_logs');
         Schema::dropIfExists('flight_locations');
         Schema::dropIfExists('assets');
+        
+        // Menghapus kolom dari tabel users jika dilakukan rollback
+        if (Schema::hasTable('users')) {
+            Schema::table('users', function (Blueprint $table) {
+                // Menambahkan company_id ke daftar kolom yang dihapus saat rollback
+                $table->dropColumn([
+                    'full_name', 'employee_id', 'photo_path', 'company_id', 'department_id',
+                    'license_number', 'license_issued_by', 'license_expiration_date', 
+                    'digital_signature', 'role', 'is_approved'
+                ]);
+            });
+        }
+        
         Schema::dropIfExists('departments');
         Schema::dropIfExists('companies');
     }

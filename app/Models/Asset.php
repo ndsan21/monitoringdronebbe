@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-
 class Asset extends Model
 {
     protected $fillable = [
@@ -26,7 +25,7 @@ class Asset extends Model
     ];
 
     /**
-     * Relasi ke Company (Pemilik Asset)
+     * Relasi ke Company (Pemilik Asset) - KUNCI ISOLASI DATA SAAS
      */
     public function company(): BelongsTo 
     { 
@@ -42,8 +41,7 @@ class Asset extends Model
     }
 
     /**
-     * FIX UTAMA: Jika asset ini adalah SPAREPART, ini akan mengambil data DRONE induknya
-     * Mengarah ke Asset::class karena data drone Anda disimpan di dalam tabel assets dengan category='DRONE'
+     * Jika asset ini adalah SPAREPART, ini akan mengambil data DRONE induknya
      */
     public function drone(): BelongsTo 
     { 
@@ -51,8 +49,7 @@ class Asset extends Model
     }
 
     /**
-     * Relasi Kebalikan: Jika asset ini adalah DRONE, ini akan mengambil semua komponen (SPAREPART) yang menempel padanya
-     * Berfungsi penuh untuk merender dan menyimpan multi-select Array di Filament Resource Anda
+     * Relasi Kebalikan: Jika asset ini adalah DRONE, ini mengambil semua komponen (SPAREPART) yang menempel padanya
      */
     public function spareparts(): HasMany
     {
@@ -66,9 +63,30 @@ class Asset extends Model
     {
         return $this->belongsTo(Asset::class, 'drone_id');
     }
+    
+    /**
+     * Relasi ke Flight Logs (Riwayat Penerbangan Drone)
+     */
     public function flightLogs(): HasMany
     {
-    // ⚡ GANTI 'asset_id' MENJADI 'drone_id' SESUAI NAMA KOLOM DI TABEL FLIGHT LOGS MASTER
-    return $this->hasMany(FlightLog::class, 'drone_id'); 
+        return $this->hasMany(FlightLog::class, 'drone_id'); 
+    }
+
+    // --- RELASI TAMBAHAN UNTUK MODUL OPERASIONAL ---
+
+    /**
+     * Relasi ke Damage Reports (Laporan Kerusakan Asset)
+     */
+    public function damageReports(): HasMany
+    {
+        return $this->hasMany(DamageReport::class, 'asset_id');
+    }
+
+    /**
+     * Relasi ke Maintenance Logs (Catatan Perawatan/Service Asset)
+     */
+    public function maintenanceLogs(): HasMany
+    {
+        return $this->hasMany(MaintenanceLog::class, 'asset_id');
     }
 }

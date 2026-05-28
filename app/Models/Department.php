@@ -9,8 +9,10 @@ class Department extends Model
 {
     protected $fillable = ['name'];
 
+    // --- RELASI DATABASE ---
+
     /**
-     * Relasi ke User: Satu departemen bisa digendong oleh banyak User/Karyawan
+     * Relasi ke tabel Users (Satu departemen bisa menaungi banyak karyawan)
      */
     public function users(): HasMany
     {
@@ -18,7 +20,7 @@ class Department extends Model
     }
 
     /**
-     * Relasi ke Asset: Satu departemen bisa memiliki banyak Asset/Drone/Sparepart
+     * Relasi ke tabel Assets (Satu departemen bisa dihubungkan ke banyak aset/drone)
      */
     public function assets(): HasMany
     {

@@ -12,7 +12,7 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Membuat data Company bawaan
+        // 1. Membuat data Company bawaan (Master PT)
         $company = Company::firstOrCreate(['name' => 'PT. Drone Inovasi Master']);
         
         // FIX UTAMA: Menghapus 'company_id' karena model & tabel Department sudah resmi berdiri sendiri secara universal
@@ -27,7 +27,7 @@ class UserSeeder extends Seeder
                 'employee_id' => 'ADMIN001',
                 'password' => Hash::make('password123'),
                 'role' => 'super_admin',
-                'company_id' => $company->id, // User tetap terhubung ke Company
+                'company_id' => $company->id, // ◄--- KUNCI SAAS: User dihubungkan langsung ke Company
                 'department_id' => $dept->id,  // User tetap terhubung ke Department
                 'is_approved' => true
             ]
