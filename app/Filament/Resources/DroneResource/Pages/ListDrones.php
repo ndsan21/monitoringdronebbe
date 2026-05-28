@@ -14,9 +14,11 @@ class ListDrones extends ListRecords
     // 1. Kosongkan ini agar tombol bawaan di kanan atas hilang
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Actions\CreateAction::make() // ◄--- INI DIA YANG KETINGGALAN JIR!
+                ->label('New Drone'),    // Label tombol di pojok kanan atas
+        ];
     }
-
     // 2. Munculkan widget statistik di atas tabel
     protected function getHeaderWidgets(): array
     {

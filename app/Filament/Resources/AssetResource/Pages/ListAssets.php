@@ -14,7 +14,10 @@ class ListAssets extends ListRecords
     // 1. KOSONGKAN Header Actions (Ini menghilangkan tombol di pojok kanan atas)
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Actions\CreateAction::make() // ◄--- INI WAJIB ADA BIAR TOMBOL "NEW" MUNCUL JIR!
+                ->label('New Asset'),    // Bisa dikasih label custom kalau mau
+        ];
     }
 
     // 2. Tampilkan Widget Overview di Atas

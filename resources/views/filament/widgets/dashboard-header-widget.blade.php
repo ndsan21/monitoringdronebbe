@@ -35,10 +35,24 @@
         <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[80px] pointer-events-none hidden dark:block"></div>
 
         <div class="flex items-center gap-6 min-w-0 relative z-10">
-            <div class="w-20 h-20 bg-white border border-slate-200 rounded-xl flex flex-col items-center justify-center text-center shrink-0 shadow-md p-2 select-none">
-                <span class="text-[#059669] font-[900] text-lg tracking-tighter leading-none">KHO</span>
-                <span class="text-slate-900 font-extrabold text-sm tracking-widest mt-0.5 leading-none">TAI</span>
-                <div class="w-8 h-0.5 bg-[#10b981] mt-1.5 rounded-full opacity-60"></div>
+            <div class="w-20 h-20 bg-white border border-slate-200 rounded-xl flex flex-col items-center justify-center text-center shrink-0 shadow-md p-2 select-none relative overflow-hidden">
+                @if(auth()->user()?->subscriptionGroup?->logo_path)
+                    <img src="{{ asset('storage/' . auth()->user()->subscriptionGroup->logo_path) }}" 
+                         alt="Group Logo" 
+                         id="cmd-group-logo"
+                         class="w-full h-full object-contain p-1"
+                         onerror="this.style.display='none'; document.getElementById('cmd-fallback-logo').classList.remove('hidden');">
+                    
+                    <div id="cmd-fallback-logo" class="hidden flex flex-col items-center justify-center text-center w-full h-full">
+                        <span class="text-[#059669] font-[900] text-base tracking-tighter leading-none">KHO</span>
+                        <span class="text-slate-900 font-extrabold text-xs tracking-widest mt-0.5 leading-none">TAI</span>
+                        <div class="w-6 h-0.5 bg-[#10b981] mt-1 rounded-full opacity-60"></div>
+                    </div>
+                @else
+                    <span class="text-[#059669] font-[900] text-lg tracking-tighter leading-none">KHO</span>
+                    <span class="text-slate-900 font-extrabold text-sm tracking-widest mt-0.5 leading-none">TAI</span>
+                    <div class="w-8 h-0.5 bg-[#10b981] mt-1.5 rounded-full opacity-60"></div>
+                @endif
             </div>
 
             <div class="flex flex-col min-w-0">

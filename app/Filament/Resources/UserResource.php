@@ -16,7 +16,7 @@ class UserResource extends Resource
 {
     protected static ?string $model = User::class;
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationGroup = 'Manajemen Kru';
+    protected static ?string $navigationGroup = 'Master Data';
     protected static ?string $navigationLabel = 'Pilot & Staff';
     protected static ?string $modelLabel = 'Pilot & Staff';
     protected static ?int $navigationSort = 1;
@@ -80,7 +80,7 @@ class UserResource extends Resource
                     ->label('Company (PT Parent)')
                     ->default(fn () => auth()->user()->company_id) // Default awal ke PT Nadia, tapi bebas diubah ke PT lain dalam grup yang sama
                     ->required(),
-                    
+
                 Forms\Components\Select::make('department_id')
                     ->relationship('department', 'name')
                     ->label('Department')
