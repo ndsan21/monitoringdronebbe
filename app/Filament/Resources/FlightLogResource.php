@@ -25,6 +25,11 @@ class FlightLogResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     protected static ?int $navigationSort = 1; 
     
+    public static function canViewAny(): bool { return auth()->check(); }
+    public static function canCreate(): bool { return auth()->check(); }
+    public static function canEdit($record): bool { return auth()->check(); }
+    public static function canDelete($record): bool { return auth()->user()->isSuperAdmin() || auth()->user()->isAdmin(); }
+    
     public static function form(Form $form): Form
     {
         return $form->schema([

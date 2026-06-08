@@ -24,7 +24,19 @@ class AssetResource extends Resource
     protected static ?string $navigationGroup = 'Inventory & Asset Management';
     protected static ?string $navigationIcon = 'heroicon-o-cpu-chip';
     protected static ?int $navigationSort = 2;
+// Tambahkan ini di dalam class Resource yang ingin disembunyikan dari pilot
 
+public static function canViewAny(): bool
+{
+    $user = auth()->user();
+
+    if (! $user) {
+        return false;
+    }
+
+    // 🔒 PENGUNCI PILOT: Hanya role super_admin dan admin yang boleh melihat/mengakses menu ini!
+    return in_array($user->role, ['super_admin', 'admin']);
+}
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -55,14 +67,14 @@ class AssetResource extends Resource
                 Forms\Components\DatePicker::make('entry_date')->default(now())->required(),
             ])->columns(2),
 
-            Forms\Components\Section::make('🤖 Drone Technical Details')
+            Forms\Components\Section::make('ðŸ¤– Drone Technical Details')
                 ->visible(fn (Get $get) => $get('category') === 'DRONE')
                 ->schema([
                     Forms\Components\Select::make('mission_type')
                         ->label('Mission Type')
                         ->options(['patrol' => 'Update Pekerjaan / Patroli', 'documentation' => 'Dokumentasi Acara', 'mapping' => 'Orthophoto / Pemetaan']),
 
-                    // ⚡ FIX: spareparts_ids tidak akan error lagi karena kita dehydrate
+                    // âš¡ FIX: spareparts_ids tidak akan error lagi karena kita dehydrate
                     Forms\Components\Select::make('spareparts_ids')
                         ->label('Installed Parts / Components')
                         ->options(\App\Models\Asset::where('category', 'SPAREPART')->pluck('asset_name', 'id'))
@@ -81,7 +93,7 @@ class AssetResource extends Resource
                         ->columnSpan(2), 
                 ])->columns(2),
 
-            Forms\Components\Section::make('🔧 Sparepart Status')
+            Forms\Components\Section::make('ðŸ”§ Sparepart Status')
                 ->visible(fn (Get $get) => $get('category') === 'SPAREPART')
                 ->schema([
                     Forms\Components\Select::make('status')
@@ -120,7 +132,7 @@ class AssetResource extends Resource
             ]);
     }
 
-    // ⚡ MAGIC: Mengkoneksikan Sparepart otomatis saat klik Save
+    // âš¡ MAGIC: Mengkoneksikan Sparepart otomatis saat klik Save
     public static function afterSave($record, $data): void
     {
         if (isset($data['spareparts_ids'])) {

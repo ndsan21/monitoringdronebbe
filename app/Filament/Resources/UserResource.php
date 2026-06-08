@@ -21,20 +21,66 @@ class UserResource extends Resource
     protected static ?string $modelLabel = 'Pilot & Staff';
     protected static ?int $navigationSort = 1;
 
-    // 🔒 Otorisasi Navigasi
-    public static function shouldRegisterNavigation(): bool
+    /**
+     * 🔒 OTORISASI BACKEND: Memblokir akses URL langsung (Anti-Tembak URL manual)
+     */
+    public static function canViewAny(): bool
     {
-        return in_array(auth()->user()?->role, ['super_admin', 'admin']);
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        // Ambil nama grup langganan dan paksa jadi huruf kecil semua
+        $groupName = strtolower($user->subscriptionGroup?->group_name ?? '');
+
+        // ⛔ BLACKLIST AKUN PRIBADI: Jika nama grup mengandung kata ini, blokir total hak aksesnya!
+        if (
+            str_contains($groupName, 'pribadi') || 
+            str_contains($groupName, 'personal') || 
+            str_contains($groupName, 'saya ceo')
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
-    // 🔒 Filter Data: Admin PT hanya melihat kru di PT-nya sendiri
+    /**
+     * 🔒 OTORISASI NAVIGASI SIDEBAR: Menyembunyikan menu dari pandangan mata
+     */
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        // 1. Jika terdeteksi akun pribadi via fungsi canViewAny, langsung sembunyikan!
+        if (! static::canViewAny()) {
+            return false;
+        }
+
+        // 2. Tetap pertahankan filter role bawaan lu (Hanya Super Admin & Admin PT yang boleh lihat)
+        return in_array($user->role, ['super_admin', 'admin']);
+    }
+
+    /**
+     * 🔒 FILTER DATA: Mengizinkan Admin PT melihat kru internal + User baru mendaftar (Grup masih NULL)
+     */
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         
+        // 🔒 JIKA YANG LOGIN BUKAN SUPER ADMIN (Alias Admin PT / Tenant)
         if (!auth()->user()->isSuperAdmin()) {
-            $query->where('company_id', auth()->user()->company_id)
-                  ->where('role', '!=', 'super_admin');
+            $query->where('role', '!=', 'super_admin')
+                  ->where(function (Builder $subQuery) {
+                      $subQuery->where('subscription_group_id', auth()->user()->subscription_group_id)
+                               ->orWhereNull('subscription_group_id'); // ◄--- KUNCI UTAMA: Supaya user baru regis yang grupnya masih kosong bisa kelihatan!
+                  });
         }
 
         return $query;
@@ -59,28 +105,29 @@ class UserResource extends Resource
                     ->required()
                     ->unique(ignoreRecord: true),
                 
-                // Input Grup: Tetap dikunci ke grup Nadia (BBE-KMIA) agar pilot tidak nyasar ke grup kompetitor
+                // Input Grup: Otomatis mengunci user baru ke grup milik Admin yang memprosesnya
                 Forms\Components\Select::make('subscription_group_id')
                     ->relationship('subscriptionGroup', 'group_name')
-                    ->label('Grup (Subscription Group)')
+                    ->label('Grup')
                     ->default(fn () => auth()->user()->subscription_group_id)
                     ->disabled(fn () => !auth()->user()->isSuperAdmin())
-                    ->dehydrated()
+                    ->dehydrated() // Tetap dikirim ke database saat disave meskipun statusnya disabled
                     ->required(),
 
-                // Input PT: Dibuka gemboknya! Nadia bisa memilih, tapi pilihannya dibatasi hanya PT di dalam grupnya saja
+                // Input PT: Pilihan dibatasi hanya PT yang berada di dalam grup sang admin saja
                 Forms\Components\Select::make('company_id')
                     ->relationship(
                         'company', 
                         'name',
                         fn (Builder $query) => auth()->user()->isSuperAdmin()
                             ? $query
-                            : $query->where('subscription_group_id', auth()->user()->subscription_group_id) // ◄--- KUNCI: Filter agar hanya muncul PT milik grup ini
+                            : $query->where('subscription_group_id', auth()->user()->subscription_group_id)
                     )
                     ->label('Company (PT Parent)')
-                    ->default(fn () => auth()->user()->company_id) // Default awal ke PT Nadia, tapi bebas diubah ke PT lain dalam grup yang sama
+                    ->default(fn () => auth()->user()->company_id)
                     ->required(),
 
+                // Input Departemen
                 Forms\Components\Select::make('department_id')
                     ->relationship('department', 'name')
                     ->label('Department')
@@ -154,7 +201,6 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('full_name')->label('Name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('employee_id')->label('NIK')->searchable(),
                 
-                // 🛠️ FIX: Menggunakan 'group_name' di tabel
                 Tables\Columns\TextColumn::make('subscriptionGroup.group_name')
                     ->label('Grup')
                     ->badge()
@@ -165,6 +211,7 @@ class UserResource extends Resource
                     ->label('PT')
                     ->badge()
                     ->color('info')
+                    ->default('-') // Memberikan tanda strip jika PT masih kosong/baru register
                     ->toggleable(isToggledHiddenByDefault: fn () => !auth()->user()->isSuperAdmin()), 
                 
                 Tables\Columns\TextColumn::make('role')
@@ -224,6 +271,7 @@ class UserResource extends Resource
     public static function getPages(): array
     {
         return [
+            // Sesuai screenshot image_25e9bb.png, ini mengarah ke file penanganan halaman utamamu
             'index' => Pages\ListUsers::route('/'),
             'create' => Pages\CreateUser::route('/create'),
             'edit' => Pages\EditUser::route('/{record}/edit'),

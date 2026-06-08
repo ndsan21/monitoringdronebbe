@@ -18,6 +18,20 @@ class FlightLocationResource extends Resource
 protected static ?string $navigationIcon = 'monoicon-location';
 protected static ?int $navigationSort = 2;
 
+// Tambahkan ini di dalam class Resource yang ingin disembunyikan dari pilot
+
+public static function canViewAny(): bool
+{
+    $user = auth()->user();
+
+    if (! $user) {
+        return false;
+    }
+
+    // 🔒 PENGUNCI PILOT: Hanya role super_admin dan admin yang boleh melihat/mengakses menu ini!
+    return in_array($user->role, ['super_admin', 'admin']);
+}
+
     public static function form(Form $form): Form
     {
         return $form->schema([

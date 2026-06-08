@@ -83,12 +83,20 @@ class User extends Authenticatable implements FilamentUser, HasTenants
 
     // --- ACCESS CONTROL ---
     public function canAccessPanel(Panel $panel): bool
-    {
-        $id = $panel->getId();
-        if ($id === 'super-admin') return $this->isSuperAdmin();
-        if ($id === 'admin') return ($this->isAdmin() || $this->isSuperAdmin()) && $this->is_approved;
-        return $this->isPilot() && $this->is_approved;
+{
+    // Debugging: Buka storage/logs/laravel.log untuk melihat alasan 403
+    $role = strtolower(trim($this->role));
+    $isApproved = (bool) $this->is_approved;
+
+    \Log::info("Access Check: User {$this->email} | Role: {$role} | Approved: {$isApproved}");
+
+    if ($panel->getId() === 'admin') {
+        // Izinkan jika role cocok DAN is_approved true
+        return in_array($role, ['super_admin', 'admin', 'pilot']) && $isApproved;
     }
+
+    return false;
+}
 
     public function isSuperAdmin(): bool { return $this->role === 'super_admin'; }
     public function isAdmin(): bool { return $this->role === 'admin'; }

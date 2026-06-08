@@ -17,6 +17,7 @@
         "maatwebsite/excel": "^3.1",
         "owenvoke/blade-fontawesome": "^2.9",
         "secondnetwork/blade-tabler-icons": "^3.44",
+        "spatie/laravel-permission": "*",
         "spatie/laravel-settings": "^3.8"
     },
     "require-dev": {

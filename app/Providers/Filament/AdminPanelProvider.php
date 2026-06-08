@@ -21,7 +21,6 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
 use App\Filament\Resources\Pages\Auth\CustomRegister;
 use Filament\Navigation\NavigationGroup;
-use App\Filament\Pages\Auth\Login;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -34,28 +33,24 @@ class AdminPanelProvider extends PanelProvider
             ->login(\App\Filament\Pages\Auth\Login::class)
             ->registration(CustomRegister::class)
             
-            // 🎯 LOGO & BRANDING DINAMIS (Menggantikan teks "Laravel")
-            // 🎯 LOGO & BRANDING DINAMIS (Hierarki Diperbarui)
+            // 🎯 LOGO & BRANDING DINAMIS
             ->brandLogo(function () {
                 $user = auth()->user();
                 
-                // Posisikan GRUP LANGGANAN di nomor 1 agar menjadi prioritas utama!
                 if ($user && $user->subscriptionGroup && $user->subscriptionGroup->logo_path) {
                     return asset('storage/' . $user->subscriptionGroup->logo_path);
                 }
                 
-                // Nomor 2: Jika Grup tidak punya logo, baru pakai logo spesifik PT/Company
                 if ($user && $user->company && $user->company->logo_path) {
                     return asset('storage/' . $user->company->logo_path);
                 }
 
-                // Jika belum login / data kosong, tampilkan logo default aplikasi Anda
                 return asset('LOGO LOGDRONE.png'); 
             })
-            ->brandLogoHeight('2.5rem') // Mengatur tinggi logo agar proporsional di sidebar
-            ->brandName('LogDrone System BBE') // Teks cadangan jika logo tidak ditemukan / gagal render
+            ->brandLogoHeight('2.5rem') 
+            ->brandName('LogDrone System BBE') 
             
-            // 🎯 Favicon PWA (.jpg)
+            // 🎯 Favicon PWA
             ->favicon(asset('logdrone-logo.jpg?v=999')) 
             
             // ⚡ FLUID LAYOUT
@@ -89,20 +84,12 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             
             ->pages([
-                Pages\Dashboard::class,
+                // 🔄 FIX: Menggunakan Dashboard kustom agar pilot auto-redirect ke form flightlog
+                \App\Filament\Pages\Dashboard::class,
             ])
             
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                \App\Filament\Widgets\DashboardHeaderWidget::class,
-                \App\Filament\Widgets\DashboardStatsOverview::class,
-                \App\Filament\Widgets\DroneHoursChart::class,
-                \App\Filament\Widgets\PilotHoursChart::class,
-                \App\Filament\Widgets\FlightDurationTrendChart::class,
-                \App\Filament\Widgets\MissionPurposeChart::class,
-                \App\Filament\Widgets\BatteryHealthChart::class,
-                \App\Filament\Widgets\RecentFlightsTable::class,
-            ])
+            
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -118,252 +105,158 @@ class AdminPanelProvider extends PanelProvider
                 Authenticate::class,
             ])
             
-            // 🎯 PREMIUM BALANCED AUTH COMPONENT ENGINE
             ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn (): string => Blade::render('
-                    <link rel="manifest" href="/manifest.json?v=3">
-                    <meta name="theme-color" content="#1e3a8a">
-                    <meta name="apple-mobile-web-app-capable" content="yes">
-                    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-                    <link rel="apple-touch-icon" href="/icons/icon-192x192.jpg">
-                    
-                    <style>
-                        html, body, .fi-body {
-                            height: 100% !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
-                            background: #040812 !important;
-                        }
+    PanelsRenderHook::HEAD_END,
+    fn (): string => '<link rel="manifest" href="/manifest.json?v=2">
+                      <meta name="theme-color" content="#10B981">
+                      <style>
+                          /* 🔥 JURUS RESPONSIP: Paksa Logo ke Tengah & Responsif */
+                          .fi-simple-header {
+                              display: flex !important;
+                              justify-content: center !important;
+                              align-items: center !important;
+                              flex-direction: column !important;
+                              width: 100% !important;
+                          }
+                          
+                          .fi-logo {
+                              display: flex !important;
+                              justify-content: center !important;
+                              width: 100% !important;
+                          }
 
-                        /* ======================================================= */
-                        /* 🖥️ DESKTOP EXCLUSIVE HIGH-END APPLICATION INTERFACE     */
-                        /* ======================================================= */
-                        @media (min-width: 1024px) {
-                            .fi-simple-layout {
-                                background: #040812 !important;
-                                display: flex !important;
-                                flex-direction: row !important;
-                                align-items: center !important;
-                                justify-content: flex-start !important; 
-                                min-height: 100vh !important;
-                                width: 100% !important;
-                                overflow: hidden !important;
-                                padding: 0 !important;
-                                position: relative !important;
-                            }
-                            
-                            /* Penempatan Gambar Drone Sisi Kanan Tanpa Menabrak Form */
-                            .fi-simple-layout::before {
-                                content: "" !important;
-                                position: absolute !important;
-                                top: 0 !important;
-                                right: 0 !important;
-                                width: 52% !important; /* Mengurangi lebar agar menjauh dari form */
-                                height: 100% !important;
-                                background-image: 
-                                    linear-gradient(90deg, #040812 0%, rgba(4,8,18,0.3) 20%, rgba(4,8,18,0) 100%),
-                                    url("/pngtree-an-image-of-a-camera-mounted-to-a-black-drone-image_13113348.jpg") !important;
-                                background-size: cover !important;
-                                background-position: center center !important;
-                                background-repeat: no-repeat !important;
-                                pointer-events: none !important;
-                                z-index: 1 !important;
-                            }
+                          /* Aturan Utama Gambar */
+                          .fi-logo img {
+                              display: block !important;
+                              margin: 0 auto !important;
+                              object-fit: contain !important;
+                              
+                              /* Ukuran Desktop (Normal) */
+                              max-width: 300px !important;
+                              height: auto !important;
+                              max-height: 100px !important;
+                          }
 
-                            /* Bypass Container Utama Filament */
-                            .fi-simple-layout > div {
-                                width: 100% !important;
-                                max-width: 100% !important;
-                                background: transparent !important;
-                                border: none !important;
-                                box-shadow: none !important;
-                                margin: 0 !important;
-                                padding: 0 !important;
-                            }
-
-                            /* Geser Blok Konten ke Area Gelap Sisi Kiri */
-                            .fi-simple-layout main {
-                                width: 100% !important;
-                                max-width: 440px !important; 
-                                margin: 0 0 0 10% !important; 
-                                padding: 0 !important;
-                                background: transparent !important;
-                                position: relative !important;
-                                z-index: 10 !important; 
-                            }
-
-                            /* Bersihkan Total Background Card */
-                            .fi-simple-layout main section,
-                            .fi-simple-main-ctn {
-                                background: transparent !important;
-                                border: none !important;
-                                box-shadow: none !important;
-                                padding: 0 !important;
-                            }
-
-                            /* Header Teks Utama Rata Kiri */
-                            .fi-simple-header-heading {
-                                text-align: left !important;
-                                font-size: 2.2rem !important;
-                                font-weight: 800 !important;
-                                color: #ffffff !important;
-                                letter-spacing: -0.02em !important;
-                                margin-bottom: 8px !important;
-                            }
-                            
-                            /* Deskripsi Teks */
-                            .fi-simple-header p {
-                                text-align: left !important;
-                                font-size: 0.95rem !important;
-                                color: #94a3b8 !important;
-                                margin: 0 0 30px 0 !important;
-                            }
-                            
-                            /* Sembunyikan Tautan Navigasi Luar yang Berantakan */
-                            .fi-simple-header nav,
-                            .fi-simple-header div:has(a) {
-                                display: none !important;
-                            }
-
-                            /* Teks Label Input (Email / Password) Dibuat Elegan & Jelas */
-                            .fi-fo-field-wrp-label span {
-                                color: #94a3b8 !important;
-                                font-size: 0.85rem !important;
-                                font-weight: 500 !important;
-                                letter-spacing: 0.05em !important;
-                                text-transform: uppercase !important;
-                            }
-
-                            /* Kolom Input Lebar Penuh (Mengunci Eror Lingkaran Kecil) */
-                            .fi-simple-layout input {
-                                background-color: #0f172a !important;
-                                border: 1px solid #1e293b !important;
-                                border-radius: 6px !important;
-                                color: #ffffff !important;
-                                padding: 12px 14px !important;
-                                font-size: 0.95rem !important;
-                                width: 100% !important; /* Paksa lebar 100% */
-                                display: block !important;
-                            }
-                            
-                            .fi-simple-layout input:focus-within {
-                                border-color: #10b981 !important;
-                                box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15) !important;
-                            }
-
-                            /* Sembunyikan Checkbox Remember Me Agar Form Padat */
-                            .fi-simple-layout label:has(input[type="checkbox"]),
-                            .fi-simple-layout .justify-between:has(a) {
-                                display: none !important;
-                            }
-
-                            /* Tombol Sign In Lebar Penuh yang Kokoh */
-                            .fi-simple-layout button[type="submit"] {
-                                background-color: #10b981 !important; /* Hijau Emerald Kebanggaan */
-                                border-radius: 6px !important;
-                                padding: 12px !important;
-                                font-weight: 600 !important;
-                                font-size: 0.95rem !important;
-                                color: #ffffff !important;
-                                width: 100% !important; /* Lebar penuh penyeimbang */
-                                margin-top: 15px !important;
-                                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
-                            }
-                        }
-
-                        /* ======================================================= */
-                        /* 📱 MOBILE RESPONSIVE ENGINE                             */
-                        /* ======================================================= */
-                        @media (max-width: 1023px) {
-                            .fi-simple-layout {
-                                background-image: 
-                                    linear-gradient(180deg, rgba(4,8,18,0.85) 0%, rgba(4,8,18,0.95) 100%),
-                                    url("/pngtree-an-image-of-a-camera-mounted-to-a-black-drone-image_13113348.jpg") !important;
-                                background-size: cover !important;
-                                background-position: center center !important;
-                                display: flex !important;
-                                align-items: center !important;
-                                justify-content: center !important;
-                                min-height: 100vh !important;
-                                padding: 20px !important;
-                            }
-                            .fi-simple-layout::before { display: none !important; }
-                            .fi-simple-layout main { width: 100% !important; max-width: 380px !important; margin: 0 auto !important; }
-                            .fi-simple-layout main section { background: rgba(15, 23, 42, 0.8) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; padding: 30px 20px !important; border-radius: 8px !important; }
-                            .fi-simple-layout input { background-color: #0f172a !important; border: 1px solid #334155 !important; border-radius: 6px !important; color: #ffffff !important; padding: 12px !important; width: 100% !important; }
-                            .fi-simple-layout button[type="submit"] { background-color: #10b981 !important; border-radius: 6px !important; padding: 12px !important; width: 100% !important; }
-                            .fi-simple-header-heading { text-align: center !important; font-size: 1.8rem !important; color: #ffffff !important; }
-                            .fi-simple-header p { text-align: center !important; font-size: 0.95rem !important; color: #aaaaaa !important; }
-                            .fi-simple-layout label:has(input[type="checkbox"]), .fi-simple-header nav { display: none !important; }
-                        }
-                    </style>
-
-                    <script>
-                        document.addEventListener("DOMContentLoaded", () => {
-                            const changeText = () => {
-                                const heading = document.querySelector(".fi-simple-header-heading");
-                                if (heading && (heading.innerText === "Sign in" || heading.innerText === "SIGN IN")) {
-                                    heading.innerText = "LOGDRONE SYSTEM";
-                                    const sub = heading.nextElementSibling;
-                                    if (sub) sub.innerText = "Operational & Drone Fleet Management Command";
-                                }
-                            };
-
-                            changeText();
-                            
-                            const handleDashboardHeader = () => {
-                                const path = window.location.pathname.replace(/\/$/, ""); 
-                                if (path.endsWith("/admin")) {
-                                    const header = document.querySelector(".fi-header");
-                                    if (header) header.style.display = "none";
-                                }
-                            };
-                            handleDashboardHeader();
-                            if (window.Livewire) {
-                                window.Livewire.hook("commit.done", () => { 
-                                    changeText();
-                                    handleDashboardHeader(); 
-                                });
-                            }
-                        });
-                    </script>
-                '),
-            )
+                          /* 🔥 RESPONSIF UNTUK HP: Logo mengecil otomatis */
+                          @media (max-width: 480px) {
+                              .fi-logo img {
+                                  max-width: 200px !important; /* Mengecil di HP */
+                                  max-height: 80px !important;
+                              }
+                          }
+                      </style>'
+)
             
-            // 🎯 SERVICE WORKER REGISTRATION FOR AUTOMATIC PWA
-            // 🎯 SERVICE WORKER REGISTRATION FOR AUTOMATIC PWA & IMAGE CACHE BYPASS
+            // 🎯 2. HOOK UNTUK BODY (Service Worker & Pop-Up PWA)
             ->renderHook(
                 PanelsRenderHook::BODY_END,
-                fn (): string => Blade::render('
-                    <script>
-                        if ("serviceWorker" in navigator) {
-                            window.addEventListener("load", function() {
-                                navigator.serviceWorker.register("/sw.js").then(function(registration) {
-                                    // Cek pembaharuan service worker secara berkala agar cache tidak mengunci gambar
-                                    registration.update();
-                                }).catch(function(err) {
-                                    console.log("ServiceWorker registration failed: ", err);
-                                });
-                            });
-                        }
+                function(): string {
+                    // SATPAM: Jika user BELUM login, jangan munculkan pop-up install apa pun!
+                    if (!auth()->check()) {
+                        return '';
+                    }
 
-                        // 🔥 FORCED RE-RENDER FOR ANIMATED GIFS
-                        // Trik memaksa browser merender ulang siklus frame GIF di sidebar agar tidak freeze
-                        document.addEventListener("DOMContentLoaded", () => {
-                            setTimeout(() => {
-                                const sidebarLogos = document.querySelectorAll(".fi-sidebar-header img, .fi-logo img");
-                                sidebarLogos.forEach(img => {
-                                    const currentSrc = img.src;
-                                    if (currentSrc.includes(".gif")) {
-                                        // Suntikkan timestamp unik tipis agar browser memuat ulang siklus animasi murni
-                                        img.src = currentSrc.split("?")[0] + "?anim=" + new Date().getTime();
-                                    }
+                    return Blade::render('
+                        <script>
+                            if ("serviceWorker" in navigator) {
+                                window.addEventListener("load", function() {
+                                    navigator.serviceWorker.register("/sw.js").catch(function(err) {
+                                        console.log("SW failed: ", err);
+                                    });
                                 });
-                            }, 300); // Delay tipis menunggu dom Filament siap
-                        });
-                    </script>
-                '),
-            );
+                            }
+                        </script>
+
+                        <style>
+                            #pwa-install-prompt {
+                                position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
+                                padding: 1.5rem; transform: translateY(150%);
+                                transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+                                display: flex; justify-content: center; pointer-events: none;
+                            }
+                            #pwa-install-prompt.pwa-slide-up { transform: translateY(0); pointer-events: auto; }
+                            .pwa-card {
+                                background-color: #0f172a; border: 1px solid rgba(51, 65, 85, 0.6);
+                                border-radius: 1.5rem; padding: 1.25rem; width: 100%; max-width: 28rem;
+                                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); font-family: ui-sans-serif, system-ui, sans-serif;
+                                position: relative; overflow: hidden;
+                            }
+                            .pwa-glow { position: absolute; top: -2rem; right: -2rem; width: 8rem; height: 8rem; background-color: rgba(16, 185, 129, 0.15); border-radius: 9999px; filter: blur(24px); pointer-events: none; }
+                            .pwa-header { display: flex; align-items: center; gap: 1rem; position: relative; z-index: 10; margin-bottom: 1.25rem; }
+                            .pwa-icon { width: 3.5rem; height: 3.5rem; background: white; border-radius: 1rem; padding: 0.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+                            .pwa-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.75rem; }
+                            .pwa-text h3 { color: white; font-weight: 900; font-size: 1.125rem; margin: 0 0 0.25rem 0; }
+                            .pwa-text p { color: #94a3b8; font-size: 0.75rem; margin: 0; line-height: 1.4; }
+                            .pwa-actions { display: flex; gap: 0.75rem; position: relative; z-index: 10; }
+                            .pwa-btn { flex: 1; padding: 0.75rem 1rem; border-radius: 1rem; font-weight: bold; font-size: 0.8rem; border: none; cursor: pointer; text-align: center; transition: all 0.2s; }
+                            .pwa-btn-cancel { background-color: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+                            .pwa-btn-install { background-color: #10b981; color: white; box-shadow: 0 4px 14px 0 rgba(16,185,129,0.39); }
+                        </style>
+
+                        <div id="pwa-install-prompt">
+                            <div class="pwa-card">
+                                <div class="pwa-glow"></div>
+                                <div class="pwa-header">
+                                    <div class="pwa-icon">
+                                        <img src="/icons/icon-512x512.png" alt="App Icon">
+                                    </div>
+                                    <div class="pwa-text">
+                                        <h3>LogDrone App</h3>
+                                        <p>Install aplikasi ini di Layar Utama HP-mu untuk akses lebih cepat dan mudah.</p>
+                                    </div>
+                                </div>
+                                <div class="pwa-actions">
+                                    <button id="pwa-close-btn" class="pwa-btn pwa-btn-cancel">Nanti Saja</button>
+                                    <button id="pwa-install-btn" class="pwa-btn pwa-btn-install">Install App</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <script>
+                            let deferredPrompt;
+                            const installPrompt = document.getElementById("pwa-install-prompt");
+                            const installBtn = document.getElementById("pwa-install-btn");
+                            const closeBtn = document.getElementById("pwa-close-btn");
+                            const isDismissed = localStorage.getItem("pwa_prompt_dismissed");
+                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                            function showPrompt() {
+                                if (!isDismissed) {
+                                    setTimeout(() => { installPrompt.classList.add("pwa-slide-up"); }, 1500);
+                                }
+                            }
+
+                            function hidePrompt() {
+                                installPrompt.classList.remove("pwa-slide-up");
+                                localStorage.setItem("pwa_prompt_dismissed", "true");
+                            }
+
+                            window.addEventListener("beforeinstallprompt", (e) => {
+                                e.preventDefault();
+                                deferredPrompt = e;
+                                showPrompt();
+                            });
+
+                            document.addEventListener("DOMContentLoaded", () => {
+                                if (isMobile && !deferredPrompt) { showPrompt(); }
+                            });
+
+                            installBtn.addEventListener("click", async () => {
+                                if (deferredPrompt) {
+                                    deferredPrompt.prompt();
+                                    await deferredPrompt.userChoice;
+                                    deferredPrompt = null;
+                                    hidePrompt();
+                                } else {
+                                    alert("Untuk menginstall: Tekan ikon Share di browser, lalu pilih Add to Home Screen.");
+                                    hidePrompt();
+                                }
+                            });
+
+                            closeBtn.addEventListener("click", () => { hidePrompt(); });
+                        </script>
+                    ');
+                }
+            ); // 🌟 Penutup sudah rapi dan sempurna
     }
 }

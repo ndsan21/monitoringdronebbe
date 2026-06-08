@@ -30,6 +30,19 @@ class DroneResource extends Resource
     protected static ?string $navigationGroup = 'Inventory & Asset Management';
     protected static ?string $navigationIcon = 'tabler-drone';
     protected static ?int $navigationSort = 1;
+    // Tambahkan ini di dalam class Resource yang ingin disembunyikan dari pilot
+
+public static function canViewAny(): bool
+{
+    $user = auth()->user();
+
+    if (! $user) {
+        return false;
+    }
+
+    // 🔒 PENGUNCI PILOT: Hanya role super_admin dan admin yang boleh melihat/mengakses menu ini!
+    return in_array($user->role, ['super_admin', 'admin']);
+}
 
     public static function getEloquentQuery(): Builder
     {
@@ -47,13 +60,13 @@ class DroneResource extends Resource
                 Forms\Components\DatePicker::make('entry_date')->label('Entry date')->default(now())->required(),
             ])->columns(2),
 
-            Forms\Components\Section::make('🤖 Drone Technical Details')
+            Forms\Components\Section::make('ðŸ¤– Drone Technical Details')
                 ->schema([
                     Forms\Components\Select::make('mission_type')
                         ->label('Mission Type')
                         ->options(['patrol' => 'Update Pekerjaan / Patroli', 'documentation' => 'Dokumentasi Acara', 'mapping' => 'Orthophoto / Pemetaan']),
 
-                    // ⚡ FIX: Gunakan saveRelationships() secara eksplisit
+                    // âš¡ FIX: Gunakan saveRelationships() secara eksplisit
                     Forms\Components\Select::make('spareparts_ids')
                         ->label('Installed Parts / Components')
                         ->relationship('spareparts', 'asset_name') // Mengambil data dari relasi spareparts
