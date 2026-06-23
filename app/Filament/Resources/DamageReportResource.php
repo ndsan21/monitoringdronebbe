@@ -6,12 +6,16 @@ use App\Filament\Resources\DamageReportResource\Pages;
 use App\Models\DamageReport;
 use App\Models\Asset;
 use App\Models\FlightLocation;
+use App\Models\FlightLog;
+use App\Services\FuzzyClassifierService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Illuminate\Support\HtmlString;
 
 class DamageReportResource extends Resource
 {
@@ -30,6 +34,13 @@ class DamageReportResource extends Resource
                     ->options(Asset::pluck('asset_name', 'id'))
                     ->searchable()
                     ->preload()
+                    ->live()
+                    ->afterStateUpdated(function (Set $set) {
+                        // Reset flight log & hasil fuzzy saat asset diganti
+                        $set('flight_log_id', null);
+                        $set('fuzzy_severity_label', null);
+                        $set('fuzzy_severity_score', null);
+                    })
                     ->required(),
 
                 Forms\Components\Select::make('reported_by_id')
@@ -44,11 +55,112 @@ class DamageReportResource extends Resource
                     ->required(),
             ])->columns(3),
 
+            // --- SECTION 1B: FUZZY CLASSIFICATION ---
+            Forms\Components\Section::make('🧠 Klasifikasi Cerdas (Logika Fuzzy)')
+                ->description('Pilih log penerbangan terkait untuk mendapatkan rekomendasi tingkat keparahan secara otomatis. Hasilnya akan otomatis mengisi "Damage Severity Level" di bawah.')
+                ->schema([
+                    Forms\Components\Select::make('flight_log_id')
+                        ->label('Log Penerbangan Terkait')
+                        ->options(function (Get $get) {
+                            $assetId = $get('asset_id');
+                            if (!$assetId) {
+                                return [];
+                            }
+                            return FlightLog::where('drone_id', $assetId)
+                                ->orderByDesc('date')
+                                ->limit(20)
+                                ->get()
+                                ->mapWithKeys(function ($log) {
+                                    $label = $log->date?->format('d M Y') . ' — Durasi ' . ($log->duration ?? 0) . ' menit';
+                                    return [$log->id => $label];
+                                });
+                        })
+                        ->searchable()
+                        ->placeholder('Pilih log penerbangan...')
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, Get $get, $state) {
+                            if (!$state) {
+                                $set('fuzzy_severity_label', null);
+                                $set('fuzzy_severity_score', null);
+                                return;
+                            }
+
+                            $flightLog = FlightLog::find($state);
+
+                            if (!$flightLog) {
+                                return;
+                            }
+
+                            $service = app(FuzzyClassifierService::class);
+                            $result = $service->classifyFromFlightLog($flightLog);
+
+                            if ($result === null) {
+                                $set('fuzzy_severity_label', null);
+                                $set('fuzzy_severity_score', null);
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Klasifikasi fuzzy gagal')
+                                    ->body('Data suhu/baterai/durasi pada log ini tidak lengkap, atau server klasifikasi tidak bisa dihubungi.')
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            $set('fuzzy_severity_label', $result['label']);
+                            $set('fuzzy_severity_score', $result['score']);
+                            $set('fuzzy_input_snapshot', $result['input']);
+
+                            // Auto-fill damage_severity sesuai hasil fuzzy (tetap bisa diubah manual)
+                            $mapping = [
+                                'ringan' => 'minor',
+                                'sedang' => 'moderate',
+                                'berat' => 'major',
+                            ];
+                            $set('damage_severity', $mapping[$result['label']] ?? null);
+
+                            \Filament\Notifications\Notification::make()
+                                ->title('Klasifikasi fuzzy berhasil')
+                                ->body('Damage Severity Level otomatis diisi: ' . strtoupper($result['label']) . ' (skor ' . $result['score'] . '). Anda tetap bisa mengubahnya secara manual jika perlu.')
+                                ->success()
+                                ->send();
+                        }),
+
+                    Forms\Components\Placeholder::make('fuzzy_result_display')
+                        ->label('Hasil Rekomendasi Sistem')
+                        ->content(function (Get $get) {
+                            $label = $get('fuzzy_severity_label');
+                            $score = $get('fuzzy_severity_score');
+
+                            if (!$label) {
+                                return new HtmlString('<span style="color: #9ca3af;">Belum ada klasifikasi. Pilih log penerbangan di atas.</span>');
+                            }
+
+                            $color = match ($label) {
+                                'ringan' => '#059669',
+                                'sedang' => '#d97706',
+                                'berat' => '#dc2626',
+                                default => '#6b7280',
+                            };
+
+                            return new HtmlString(
+                                '<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;background:' . $color . '1a;color:' . $color . ';font-weight:600;text-transform:uppercase;font-size:13px;">'
+                                . strtoupper($label) . ' &middot; skor ' . $score
+                                . '</span><br><span style="color:#9ca3af;font-size:12px;">Sudah otomatis mengisi "Damage Severity Level" di bawah.</span>'
+                            );
+                        }),
+
+                    // Kolom tersembunyi yang sebenarnya menyimpan hasil fuzzy ke database
+                    Forms\Components\Hidden::make('fuzzy_severity_label'),
+                    Forms\Components\Hidden::make('fuzzy_severity_score'),
+                    Forms\Components\Hidden::make('fuzzy_input_snapshot'),
+                ])
+                ->columns(2),
+
             // --- SECTION 2: CHRONOLOGY & SEVERITY MAPPING ---
             Forms\Components\Section::make('📋 Chronology & Severity Mapping')->schema([
                 Forms\Components\Grid::make(3)->schema([
                     Forms\Components\Select::make('damage_severity')
                         ->label('Damage Severity Level')
+                        ->helperText('Otomatis terisi dari klasifikasi fuzzy. Ubah manual jika penilaian Anda berbeda dari rekomendasi sistem.')
                         ->options(['minor' => 'Minor', 'moderate' => 'Moderate', 'major' => 'Major Level'])
                         ->required(),
 
@@ -112,13 +224,22 @@ class DamageReportResource extends Resource
                         'moderate' => 'warning', 
                         'major' => 'danger'
                     }),
+                Tables\Columns\TextColumn::make('fuzzy_severity_label')
+                    ->label('Rekomendasi Fuzzy')
+                    ->badge()
+                    ->placeholder('—')
+                    ->color(fn($state) => match($state) {
+                        'ringan' => 'success',
+                        'sedang' => 'warning',
+                        'berat' => 'danger',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('current_status')->label('Progress')->badge(),
                 Tables\Columns\TextColumn::make('incident_date')->label('Incident Date')->date(),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     
-                    // 🎯 FIX MUTLAK: Merubah 'pdf.damage-report' menjadi 'pdf.damage-report-ba' sesuai file fisik Master
                     Tables\Actions\Action::make('print_ba')
                         ->label('Print BA')
                         ->icon('heroicon-o-document-arrow-down')
