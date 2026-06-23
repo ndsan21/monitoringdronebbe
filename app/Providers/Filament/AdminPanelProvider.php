@@ -21,6 +21,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
 use App\Filament\Resources\Pages\Auth\CustomRegister;
 use Filament\Navigation\NavigationGroup;
+use App\Filament\Pages\Auth\RequestPasswordReset;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -32,28 +33,22 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login(\App\Filament\Pages\Auth\Login::class)
             ->registration(CustomRegister::class)
+            ->passwordReset(RequestPasswordReset::class)
             
             // 🎯 LOGO & BRANDING DINAMIS
             ->brandLogo(function () {
                 $user = auth()->user();
-                
                 if ($user && $user->subscriptionGroup && $user->subscriptionGroup->logo_path) {
                     return asset('storage/' . $user->subscriptionGroup->logo_path);
                 }
-                
                 if ($user && $user->company && $user->company->logo_path) {
                     return asset('storage/' . $user->company->logo_path);
                 }
-
                 return asset('LOGO LOGDRONE.png'); 
             })
             ->brandLogoHeight('2.5rem') 
             ->brandName('LogDrone System BBE') 
-            
-            // 🎯 Favicon PWA
             ->favicon(asset('logdrone-logo.jpg?v=999')) 
-            
-            // ⚡ FLUID LAYOUT
             ->maxContentWidth('full') 
             
             ->colors([
@@ -64,98 +59,90 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
 
             ->navigationGroups([
-                NavigationGroup::make()
-                    ->label('Log Operasional')
-                    ->collapsible(true)
-                    ->collapsed(false), 
-
-                NavigationGroup::make()
-                    ->label('Master Data')
-                    ->collapsible(true)
-                    ->collapsed(true), 
-
-                NavigationGroup::make()
-                    ->label('Inventory & Asset Management')
-                    ->collapsible(true)
-                    ->collapsed(true),
+                NavigationGroup::make()->label('Log Operasional')->collapsible(true)->collapsed(false), 
+                NavigationGroup::make()->label('Master Data')->collapsible(true)->collapsed(true), 
+                NavigationGroup::make()->label('Inventory & Asset Management')->collapsible(true)->collapsed(true),
             ])
 
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
-            
-            ->pages([
-                // 🔄 FIX: Menggunakan Dashboard kustom agar pilot auto-redirect ke form flightlog
-                \App\Filament\Pages\Dashboard::class,
-            ])
-            
+            ->pages([\App\Filament\Pages\Dashboard::class])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             
             ->middleware([
-                EncryptCookies::class,
-                AddQueuedCookiesToResponse::class,
-                StartSession::class,
-                AuthenticateSession::class,
-                ShareErrorsFromSession::class,
-                VerifyCsrfToken::class,
-                SubstituteBindings::class,
-                DisableBladeIconComponents::class,
-                DispatchServingFilamentEvent::class,
+                EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
+                AuthenticateSession::class, ShareErrorsFromSession::class, VerifyCsrfToken::class,
+                SubstituteBindings::class, DisableBladeIconComponents::class, DispatchServingFilamentEvent::class,
             ])
-            ->authMiddleware([
-                Authenticate::class,
-            ])
+            ->authMiddleware([Authenticate::class])
             
             ->renderHook(
-    PanelsRenderHook::HEAD_END,
-    fn (): string => '<link rel="manifest" href="/manifest.json?v=2">
-                      <meta name="theme-color" content="#10B981">
-                      <style>
-                          /* 🔥 JURUS RESPONSIP: Paksa Logo ke Tengah & Responsif */
-                          .fi-simple-header {
-                              display: flex !important;
-                              justify-content: center !important;
-                              align-items: center !important;
-                              flex-direction: column !important;
-                              width: 100% !important;
-                          }
-                          
-                          .fi-logo {
-                              display: flex !important;
-                              justify-content: center !important;
-                              width: 100% !important;
-                          }
+                PanelsRenderHook::HEAD_END,
+                fn (): string => '<link rel="manifest" href="/manifest.json?v=2">
+                    <meta name="theme-color" content="#10B981">
+                    <style>
+                        /* 🚀 NUCLEAR FIX LOGO: Paksa Logo Proporsional */
+                        .fi-logo img, 
+                        .fi-simple-header img,
+                        .fi-simple-main img {
+                            width: auto !important; 
+                            height: auto !important;
+                            max-height: 80px !important;
+                            max-width: 100% !important;
+                            object-fit: contain !important;
+                            display: block !important;
+                            margin: 0 auto !important;
+                        }
+                        
+                        .fi-logo, .fi-simple-header {
+                            display: flex !important;
+                            justify-content: center !important;
+                            width: 100% !important;
+                        }
 
-                          /* Aturan Utama Gambar */
-                          .fi-logo img {
-                              display: block !important;
-                              margin: 0 auto !important;
-                              object-fit: contain !important;
-                              
-                              /* Ukuran Desktop (Normal) */
-                              max-width: 300px !important;
-                              height: auto !important;
-                              max-height: 100px !important;
-                          }
-
-                          /* 🔥 RESPONSIF UNTUK HP: Logo mengecil otomatis */
-                          @media (max-width: 480px) {
-                              .fi-logo img {
-                                  max-width: 200px !important; /* Mengecil di HP */
-                                  max-height: 80px !important;
-                              }
-                          }
-                      </style>'
-)
+                        /* 🎨 STYLE GLOBAL UNTUK LOGIN & AUTH */
+                        .dji-clean-container {
+                            position: fixed !important; top: 0 !important; left: 0 !important; 
+                            width: 100vw !important; height: 100vh !important;
+                            background-color: #030712 !important; z-index: 99999 !important; 
+                            display: flex !important; font-family: sans-serif !important; overflow: hidden !important;
+                        }
+                        
+                        /* 🔥 FIX PROPORSIONAL: Form 50%, Foto 50% */
+                        .panel-form {
+                            width: 50% !important; /* Diubah menjadi 50% agar seimbang */
+                            min-width: 400px !important; 
+                            height: 100vh !important; display: flex !important; flex-direction: column !important; 
+                            justify-content: center !important; align-items: center !important; 
+                            padding: 40px !important; background-color: #030712 !important; position: relative !important; z-index: 2 !important;
+                        }
+                        
+                        .panel-image {
+                            width: 50% !important; /* Diubah menjadi 50% agar seimbang */
+                            height: 100vh !important; 
+                            background-image: url("/—Pngtree—an image of a camera_12941482.jpg") !important;
+                            background-size: cover !important; 
+                            background-position: center center !important; 
+                            background-repeat: no-repeat !important;
+                            position: relative !important;
+                        }
+                        
+                        .panel-image::before {
+                            content: "" !important; position: absolute !important; inset: 0 !important;
+                            background: linear-gradient(90deg, #030712 0%, rgba(3, 7, 18, 0.9) 10%, rgba(16, 185, 129, 0.18) 45%, rgba(16, 185, 129, 0.05) 70%, rgba(3, 7, 18, 0) 100%) !important; z-index: 1 !important;
+                        }
+                        
+                        @media (max-width: 1024px) {
+                            .panel-form { width: 100vw !important; min-width: 100vw !important; padding: 40px 20px !important; }
+                            .panel-image { display: none !important; }
+                        }
+                    </style>'
+            )
             
-            // 🎯 2. HOOK UNTUK BODY (Service Worker & Pop-Up PWA)
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 function(): string {
-                    // SATPAM: Jika user BELUM login, jangan munculkan pop-up install apa pun!
-                    if (!auth()->check()) {
-                        return '';
-                    }
-
+                    if (!auth()->check()) { return ''; }
                     return Blade::render('
                         <script>
                             if ("serviceWorker" in navigator) {
@@ -168,6 +155,7 @@ class AdminPanelProvider extends PanelProvider
                         </script>
 
                         <style>
+                            /* PWA PROMPT STYLES */
                             #pwa-install-prompt {
                                 position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
                                 padding: 1.5rem; transform: translateY(150%);
@@ -257,6 +245,6 @@ class AdminPanelProvider extends PanelProvider
                         </script>
                     ');
                 }
-            ); // 🌟 Penutup sudah rapi dan sempurna
+            ); 
     }
 }

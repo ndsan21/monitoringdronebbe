@@ -27,8 +27,7 @@ class DamageReportResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            // --- SECTION 1: INCIDENT & TARGET INFORMATION ---
-            Forms\Components\Section::make('💥 Incident & Incident Target Information')->schema([
+            Forms\Components\Section::make('Incident & Incident Target Information')->schema([
                 Forms\Components\Select::make('asset_id')
                     ->label('Target Asset (Drone/Part)')
                     ->options(Asset::pluck('asset_name', 'id'))
@@ -36,7 +35,6 @@ class DamageReportResource extends Resource
                     ->preload()
                     ->live()
                     ->afterStateUpdated(function (Set $set) {
-                        // Reset flight log & hasil fuzzy saat asset diganti
                         $set('flight_log_id', null);
                         $set('fuzzy_severity_label', null);
                         $set('fuzzy_severity_score', null);
@@ -55,12 +53,11 @@ class DamageReportResource extends Resource
                     ->required(),
             ])->columns(3),
 
-            // --- SECTION 1B: FUZZY CLASSIFICATION ---
-            Forms\Components\Section::make('🧠 Klasifikasi Cerdas (Logika Fuzzy)')
-                ->description('Pilih log penerbangan terkait untuk mendapatkan rekomendasi tingkat keparahan secara otomatis. Hasilnya akan otomatis mengisi "Damage Severity Level" di bawah.')
+            Forms\Components\Section::make('Smart Severity Classification')
+                ->description('Select the related flight log to automatically get a severity level recommendation. The result will auto-fill the Damage Severity Level field below.')
                 ->schema([
                     Forms\Components\Select::make('flight_log_id')
-                        ->label('Log Penerbangan Terkait')
+                        ->label('Related Flight Log')
                         ->options(function (Get $get) {
                             $assetId = $get('asset_id');
                             if (!$assetId) {
@@ -71,12 +68,12 @@ class DamageReportResource extends Resource
                                 ->limit(20)
                                 ->get()
                                 ->mapWithKeys(function ($log) {
-                                    $label = $log->date?->format('d M Y') . ' — Durasi ' . ($log->duration ?? 0) . ' menit';
+                                    $label = $log->date?->format('d M Y') . ' - Duration ' . ($log->duration ?? 0) . ' min';
                                     return [$log->id => $label];
                                 });
                         })
                         ->searchable()
-                        ->placeholder('Pilih log penerbangan...')
+                        ->placeholder('Select a flight log...')
                         ->live()
                         ->afterStateUpdated(function (Set $set, Get $get, $state) {
                             if (!$state) {
@@ -98,8 +95,8 @@ class DamageReportResource extends Resource
                                 $set('fuzzy_severity_label', null);
                                 $set('fuzzy_severity_score', null);
                                 \Filament\Notifications\Notification::make()
-                                    ->title('Klasifikasi fuzzy gagal')
-                                    ->body('Data suhu/baterai/durasi pada log ini tidak lengkap, atau server klasifikasi tidak bisa dihubungi.')
+                                    ->title('Fuzzy classification failed')
+                                    ->body('Temperature, battery, or duration data on this log is incomplete, or the classification server could not be reached.')
                                     ->warning()
                                     ->send();
                                 return;
@@ -109,7 +106,6 @@ class DamageReportResource extends Resource
                             $set('fuzzy_severity_score', $result['score']);
                             $set('fuzzy_input_snapshot', $result['input']);
 
-                            // Auto-fill damage_severity sesuai hasil fuzzy (tetap bisa diubah manual)
                             $mapping = [
                                 'ringan' => 'minor',
                                 'sedang' => 'moderate',
@@ -117,21 +113,24 @@ class DamageReportResource extends Resource
                             ];
                             $set('damage_severity', $mapping[$result['label']] ?? null);
 
+                            $bodyText = $result['explanation'] ?? ('Damage Severity Level auto-filled: ' . strtoupper($result['label']) . ' (score ' . $result['score'] . '). You can still change it manually.');
+
                             \Filament\Notifications\Notification::make()
-                                ->title('Klasifikasi fuzzy berhasil')
-                                ->body('Damage Severity Level otomatis diisi: ' . strtoupper($result['label']) . ' (skor ' . $result['score'] . '). Anda tetap bisa mengubahnya secara manual jika perlu.')
+                                ->title('Fuzzy classification: ' . strtoupper($result['label']))
+                                ->body($bodyText)
                                 ->success()
+                                ->duration(8000)
                                 ->send();
                         }),
 
                     Forms\Components\Placeholder::make('fuzzy_result_display')
-                        ->label('Hasil Rekomendasi Sistem')
+                        ->label('System Recommendation')
                         ->content(function (Get $get) {
                             $label = $get('fuzzy_severity_label');
                             $score = $get('fuzzy_severity_score');
 
                             if (!$label) {
-                                return new HtmlString('<span style="color: #9ca3af;">Belum ada klasifikasi. Pilih log penerbangan di atas.</span>');
+                                return new HtmlString('<span style="color: #9ca3af;">No classification yet. Select a flight log above.</span>');
                             }
 
                             $color = match ($label) {
@@ -141,26 +140,31 @@ class DamageReportResource extends Resource
                                 default => '#6b7280',
                             };
 
-                            return new HtmlString(
-                                '<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;background:' . $color . '1a;color:' . $color . ';font-weight:600;text-transform:uppercase;font-size:13px;">'
-                                . strtoupper($label) . ' &middot; skor ' . $score
-                                . '</span><br><span style="color:#9ca3af;font-size:12px;">Sudah otomatis mengisi "Damage Severity Level" di bawah.</span>'
-                            );
+                            $labelEn = match ($label) {
+                                'ringan' => 'minor',
+                                'sedang' => 'moderate',
+                                'berat' => 'major',
+                                default => $label,
+                            };
+
+                            $html = '<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;background:' . $color . '1a;color:' . $color . ';font-weight:600;text-transform:uppercase;font-size:13px;">';
+                            $html .= strtoupper($labelEn) . ' - score ' . $score;
+                            $html .= '</span><br><span style="color:#9ca3af;font-size:12px;">Auto-filled the Damage Severity Level field below.</span>';
+
+                            return new HtmlString($html);
                         }),
 
-                    // Kolom tersembunyi yang sebenarnya menyimpan hasil fuzzy ke database
                     Forms\Components\Hidden::make('fuzzy_severity_label'),
                     Forms\Components\Hidden::make('fuzzy_severity_score'),
                     Forms\Components\Hidden::make('fuzzy_input_snapshot'),
                 ])
                 ->columns(2),
 
-            // --- SECTION 2: CHRONOLOGY & SEVERITY MAPPING ---
-            Forms\Components\Section::make('📋 Chronology & Severity Mapping')->schema([
+            Forms\Components\Section::make('Chronology & Severity Mapping')->schema([
                 Forms\Components\Grid::make(3)->schema([
                     Forms\Components\Select::make('damage_severity')
                         ->label('Damage Severity Level')
-                        ->helperText('Otomatis terisi dari klasifikasi fuzzy. Ubah manual jika penilaian Anda berbeda dari rekomendasi sistem.')
+                        ->helperText('Auto-filled from the fuzzy classification. Change it manually if your assessment differs from the system recommendation.')
                         ->options(['minor' => 'Minor', 'moderate' => 'Moderate', 'major' => 'Major Level'])
                         ->required(),
 
@@ -180,8 +184,7 @@ class DamageReportResource extends Resource
                 Forms\Components\Textarea::make('chronology')->label('Full Chronology & Incident Details')->rows(3)->required(),
             ]),
 
-            // --- SECTION 3: WORKFLOW STATUS CONTROL ---
-            Forms\Components\Section::make('🔧 Workflow Status Control (Sync Master Data)')->schema([
+            Forms\Components\Section::make('Workflow Status Control (Sync Master Data)')->schema([
                 Forms\Components\Grid::make(2)->schema([
                     Forms\Components\Select::make('current_status')
                         ->label('Repair Progress Status')
@@ -225,9 +228,9 @@ class DamageReportResource extends Resource
                         'major' => 'danger'
                     }),
                 Tables\Columns\TextColumn::make('fuzzy_severity_label')
-                    ->label('Rekomendasi Fuzzy')
+                    ->label('Fuzzy Recommendation')
                     ->badge()
-                    ->placeholder('—')
+                    ->placeholder('-')
                     ->color(fn($state) => match($state) {
                         'ringan' => 'success',
                         'sedang' => 'warning',

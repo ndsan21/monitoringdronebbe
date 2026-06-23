@@ -199,15 +199,15 @@ class FlightLogResource extends Resource
                                                         const resW = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric`);
                                                         const w = await resW.json();
                                                         if (w.main) {
-                                                            $wire.set("data.temp_c", w.main.temp);
-                                                            $wire.set("data.humidity", w.main.humidity);
-                                                            $wire.set("data.wind_speed", (w.wind.speed * 3.6).toFixed(2));
+                                                            $wire.set("data.temperature_c", w.main.temp);
+                                                            $wire.set("data.humidity_percent", w.main.humidity);
+                                                            $wire.set("data.wind_speed_kmh", (w.wind.speed * 3.6).toFixed(2));
                                                             $wire.set("data.visibility_km", (w.visibility / 1000).toFixed(1));
                                                             
                                                             const deg = w.wind.deg;
                                                             const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
                                                             const dir = directions[Math.round(deg / 45) % 8];
-                                                            $wire.set("data.wind_dir", dir + " (" + deg + "°)");
+                                                            $wire.set("data.wind_direction", dir + " (" + deg + "°)");
 
                                                             const rain = w.rain ? (w.rain["1h"] || w.rain["3h"] || 0) : 0;
                                                             $wire.set("data.rain_prob", rain + " mm/h");
@@ -235,14 +235,14 @@ class FlightLogResource extends Resource
                     Forms\Components\Fieldset::make('A. Hardware Inspection')
                         ->schema([
                             Forms\Components\Grid::make(3)->schema([
-                                Forms\Components\Toggle::make('pre_drone_motors')->label('1. Drone motors')->onColor('success')->required(),
-                                Forms\Components\Toggle::make('pre_drone_propellers')->label('2. Drone propellers')->onColor('success')->required(),
-                                Forms\Components\Toggle::make('pre_drone_airframe')->label('3. Drone airframe')->onColor('success')->required(),
+                                Forms\Components\Toggle::make('pre_drone_motors')->label('Drone motors')->onColor('success')->required(),
+                                Forms\Components\Toggle::make('pre_drone_propellers')->label('Drone propellers')->onColor('success')->required(),
+                                Forms\Components\Toggle::make('pre_drone_airframe')->label('Drone airframe')->onColor('success')->required(),
                             ]),
-                            Forms\Components\Toggle::make('pre_phone_battery_ok')->label('6. Phone device battery (≥ 30%)')->onColor('success')->required(),
+                            Forms\Components\Toggle::make('pre_phone_battery_ok')->label('Phone device battery (≥ 30%)')->onColor('success')->required(),
                         ]),
 
-                    Forms\Components\Fieldset::make('4. Remote & Battery Status')
+                    Forms\Components\Fieldset::make('Remote & Battery Status')
                     ->disabled(fn (string $operation): bool => $operation === 'edit')    
                     ->schema([
                             Forms\Components\Grid::make(4)->schema([
@@ -295,17 +295,17 @@ class FlightLogResource extends Resource
                     Forms\Components\Fieldset::make('B. System Functionality')
                         ->schema([
                             Forms\Components\Grid::make(2)->schema([
-                                Forms\Components\CheckboxList::make('app_readiness')->label('1. App Readiness')->options(['app_stable' => 'App stable', 'firmware_stable' => 'Firmware stable', 'safe_fly_database' => 'Safe Fly database'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('calibration')->label('2. Calibration')->options(['compass_ok' => 'Compass is OK', 'esc_ok' => 'ESC is OK', 'imu_ok' => 'IMU is OK'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('link_gps')->label('3. Link & GPS')->options(['rc_link_connected' => 'RC Link Connected', 'gps_locked' => 'GPS Locked (>10 sats)', 'video_feed_clear' => 'Video Feed Clear'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('rc_sticks_switches')->label('5. RC Sticks & Switches')->options(['sticks_ok' => 'Sticks is OK', 'dials_ok' => 'Dials is OK', 'buttons_ok' => 'Buttons is OK', 'antennas_ok' => 'Antennas is OK'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('media_gimbal')->label('6. Media & Gimbal')->options(['microsd_inserted' => 'MicroSD Inserted', 'camera_setting_ok' => 'Camera Setting is OK', 'gimbal_clamp_removed' => 'Gimbal Clamp Removed'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('app_self_check')->label('7. App Self-Check Result')->options(['battery' => 'Battery', 'gps' => 'GPS', 'remote' => 'Remote', 'camera' => 'Camera', 'sensors' => 'Sensors', 'microsd' => 'MicroSD'])->columns(2)->required(),
-                                Forms\Components\CheckboxList::make('flight_test')->label('8. Flight Test')->options(['hovering_stable' => 'Hovering Stable', 'home_point_set' => 'Home Point Set (RTH)', 'control_responsive' => 'Control Responsive'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('app_readiness')->label('App Readiness')->options(['app_stable' => 'App stable', 'firmware_stable' => 'Firmware stable', 'safe_fly_database' => 'Safe Fly database'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('calibration')->label('Calibration')->options(['compass_ok' => 'Compass is OK', 'esc_ok' => 'ESC is OK', 'imu_ok' => 'IMU is OK'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('link_gps')->label('Link & GPS')->options(['rc_link_connected' => 'RC Link Connected', 'gps_locked' => 'GPS Locked (>10 sats)', 'video_feed_clear' => 'Video Feed Clear'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('rc_sticks_switches')->label('RC Sticks & Switches')->options(['sticks_ok' => 'Sticks is OK', 'dials_ok' => 'Dials is OK', 'buttons_ok' => 'Buttons is OK', 'antennas_ok' => 'Antennas is OK'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('media_gimbal')->label('Media & Gimbal')->options(['microsd_inserted' => 'MicroSD Inserted', 'camera_setting_ok' => 'Camera Setting is OK', 'gimbal_clamp_removed' => 'Gimbal Clamp Removed'])->columns(2)->required(),
+                                Forms\Components\CheckboxList::make('app_self_check')->label('App Self-Check Result')->options(['battery' => 'Battery', 'gps' => 'GPS', 'remote' => 'Remote', 'camera' => 'Camera', 'sensors' => 'Sensors', 'microsd' => 'MicroSD'])->columns(2),
+                                Forms\Components\CheckboxList::make('flight_test')->label('Flight Test')->options(['hovering_stable' => 'Hovering Stable', 'home_point_set' => 'Home Point Set (RTH)', 'control_responsive' => 'Control Responsive'])->columns(2)->required(),
                             ]),
                         ]),
 
-                    Forms\Components\Fieldset::make('4. Battery Voltage Detail')
+                    Forms\Components\Fieldset::make('Battery Voltage Detail')
                         ->schema([
                             Forms\Components\Grid::make(4)->schema([
                                 Forms\Components\TextInput::make('low_cell_v')->label('Low Cell (V)')->numeric()->required(),
@@ -316,14 +316,14 @@ class FlightLogResource extends Resource
                         ]),
                 ]),
 
-            // --- 3. ENVIRONMENT & WEATHER ---
+            // --- 3. ENVIRONMENT & WEATHER (SUDAH DISAMAKAN DENGAN DATABASE) ---
             Forms\Components\Section::make('C. Environment & Weather Condition')
                 ->disabled(fn (string $operation): bool => $operation === 'edit')
                 ->schema([
                     Forms\Components\Grid::make(3)->schema([
-                        Forms\Components\TextInput::make('temp_c')->label('Temp (°C)')->numeric()->required(),
-                        Forms\Components\TextInput::make('wind_speed')->label('Wind Speed (km/h)')->numeric()->required(),
-                        Forms\Components\TextInput::make('humidity')->label('Humidity (%)')->numeric()->required(),
+                        Forms\Components\TextInput::make('temperature_c')->label('Temp (°C)')->numeric()->required(),
+                        Forms\Components\TextInput::make('wind_speed_kmh')->label('Wind Speed (km/h)')->numeric()->required(),
+                        Forms\Components\TextInput::make('humidity_percent')->label('Humidity (%)')->numeric()->required(),
                     ]),
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\TextInput::make('sky_condition')->label('Sky Condition')->required(),
@@ -333,8 +333,8 @@ class FlightLogResource extends Resource
                             ->columns(2)->required(),
                     ]),
                     Forms\Components\Grid::make(2)->schema([
-                        Forms\Components\TextInput::make('wind_dir')->label('Wind Direction')->required(),
-                        Forms\Components\TextInput::make('rain_prob')->label('Precipitation (Rain Prob. %)')->required(),
+                        Forms\Components\TextInput::make('wind_direction')->label('Wind Direction')->required(),
+                        Forms\Components\TextInput::make('rain_prob')->label('Precipitation (Rain Prob. / mm/h)')->required(),
                     ]),
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\CheckboxList::make('visibility')
@@ -361,9 +361,9 @@ class FlightLogResource extends Resource
             Forms\Components\Section::make('D. Safety & Compliance')
                 ->schema([
                     Forms\Components\Grid::make(3)->schema([
-                        Forms\Components\CheckboxList::make('pilot_health')->label('1. Pilot Health')->options(['ppe' => 'PPE Ready', 'imsafe' => 'IM SAFE Condition'])->required(),
-                        Forms\Components\CheckboxList::make('observer_health')->label('2. Observer Health')->options(['ppe' => 'PPE Ready', 'imsafe' => 'IM SAFE Condition'])->required(),
-                        Forms\Components\CheckboxList::make('clearance')->label('3. Flight Clearance')->options(['supervisor' => 'Supervisor Approval', 'owner' => 'Site/Owner Permission'])->required(),
+                        Forms\Components\CheckboxList::make('pilot_health')->label('Pilot Health')->options(['ppe' => 'PPE Ready', 'imsafe' => 'IM SAFE Condition'])->required(),
+                        Forms\Components\CheckboxList::make('observer_health')->label('Observer Health')->options(['ppe' => 'PPE Ready', 'imsafe' => 'IM SAFE Condition'])->required(),
+                        Forms\Components\CheckboxList::make('clearance')->label('Flight Clearance')->options(['supervisor' => 'Supervisor Approval', 'owner' => 'Site/Owner Permission'])->required(),
                     ]),
                     Forms\Components\Grid::make(2)->schema([
                         Forms\Components\Toggle::make('notam')->label('NOTAM')->live(),
@@ -380,13 +380,13 @@ class FlightLogResource extends Resource
                         ->columns(1) 
                         ->schema([
                             Forms\Components\Grid::make(3)->schema([
-                                Forms\Components\Toggle::make('is_motor_ok')->label('1. Motors is OK')->onColor('success'),
-                                Forms\Components\Toggle::make('is_propeller_ok')->label('2. Propellers is OK')->onColor('success'),
-                                Forms\Components\Toggle::make('is_airframe_ok')->label('3. Airframe is OK')->onColor('success'),
+                                Forms\Components\Toggle::make('is_motor_ok')->label('Motors is OK')->onColor('success'),
+                                Forms\Components\Toggle::make('is_propeller_ok')->label('Propellers is OK')->onColor('success'),
+                                Forms\Components\Toggle::make('is_airframe_ok')->label('Airframe is OK')->onColor('success'),
                             ]),
                             Forms\Components\Grid::make(2)->schema([
-                                Forms\Components\TextInput::make('rc_battery_finish')->label('4. Remaining RC Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai remote controller'),
-                                Forms\Components\TextInput::make('drone_battery_finish')->label('5. Remaining Drone Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai drone'),
+                                Forms\Components\TextInput::make('rc_battery_finish')->label('Remaining RC Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai remote controller'),
+                                Forms\Components\TextInput::make('drone_battery_finish')->label('Remaining Drone Batt (%)')->numeric()->minValue(0)->maxValue(100)->suffix('%')->placeholder('Input sisa baterai drone'),
                             ]),
                         ]),
                 ]),
@@ -394,7 +394,7 @@ class FlightLogResource extends Resource
             // --- 6. FINAL RESULT & ATTACHMENTS ---
             Forms\Components\Section::make('Final Result & Attachments')
                 ->schema([
-                    Forms\Components\Grid::make(3)->schema([
+                    $w = Forms\Components\Grid::make(3)->schema([
                         Forms\Components\Select::make('requesting_company_id')
                             ->label('Requesting Company')
                             ->options(\App\Models\Company::pluck('name', 'id'))
@@ -467,14 +467,12 @@ class FlightLogResource extends Resource
                     ]),
             ])
             ->actions([
-                // ⚡ Trik menyembunyikan Action default agar tidak bentrok
                 Tables\Actions\ViewAction::make('clickToView')
                     ->modalActions([
                         Tables\Actions\EditAction::make()->button()->color('warning'),
                     ])
                     ->extraAttributes(['class' => 'hidden']),
 
-                // ⚡ GRUP AKSI TITIK TIGA (Semua tombol berkumpul di sini dengan rapi)
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\ViewAction::make()
                         ->color('info')
@@ -483,7 +481,6 @@ class FlightLogResource extends Resource
                             Tables\Actions\EditAction::make()->button()->color('warning'),
                         ]),
                     
-                    // ⚡ TOMBOL DOMPDF SAKTI
                     Tables\Actions\Action::make('cetak_pdf')
                         ->label('Cetak Berita Acara')
                         ->icon('heroicon-o-document-arrow-down')

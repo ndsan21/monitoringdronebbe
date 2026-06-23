@@ -8,8 +8,7 @@ use Filament\Pages\Dashboard as BaseDashboard;
 class Dashboard extends BaseDashboard
 {
     /**
-     * 🚀 HADANG & LEMPAR: Fungsi ini berjalan otomatis 
-     * sebelum halaman dirender untuk mengecek role user.
+     * 🚀 HADANG & LEMPAR: Mengecek role user sebelum halaman dimuat.
      */
     public function mount(): void
     {
@@ -22,20 +21,17 @@ class Dashboard extends BaseDashboard
     }
 
     /**
-     * Widget hanya akan dimuat jika user bukan pilot 
-     * (atau jika kamu ingin admin tetap melihat dashboard ini).
+     * ⚡ KUNCI UTAMA RESPONSIVITAS TINGKAT TINGGI
      */
-    public function getHeaderWidgets(): array
+    public function getColumns(): int | string | array
     {
         return [
-            \App\Filament\Widgets\DashboardHeaderWidget::class,
-            \App\Filament\Widgets\DashboardStatsOverview::class,
-            \App\Filament\Widgets\DroneHoursChart::class,
-            \App\Filament\Widgets\PilotHoursChart::class,
-            \App\Filament\Widgets\FlightDurationTrendChart::class,
-            \App\Filament\Widgets\MissionPurposeChart::class,
-            \App\Filament\Widgets\BatteryHealthChart::class,
-            \App\Filament\Widgets\RecentFlightsTable::class,
+            'default' => 1,  // Di HP/Mobile, layout otomatis menumpuk 1 kolom ke bawah (rapi)
+            'lg' => 12,      // Di Desktop/Layar Lebar, aktifkan sistem grid 12 kolom
         ];
     }
+    
+    // 🔥 PERBAIKAN: 
+    // Fungsi getWidgets() dan getHeaderWidgets() DIHAPUS TOTAL dari sini.
+    // Filament akan otomatis menampilkan widget 1x saja dari AdminPanelProvider.
 }

@@ -6,7 +6,25 @@ use App\Http\Controllers\FlightLogExportController;
 use App\Models\Asset;
 use App\Models\FlightLocation;
 use App\Models\User;
+use App\Models\Company;
+use App\Models\Department;
 
+
+
+Route::get('/offline-flight-log', function () {
+    // 1. Jemput data dari database
+    $users = User::all(); 
+    $drones = Asset::where('category', 'DRONE')->get();
+    $locations = FlightLocation::all();
+    $companies = Company::all();
+    $departments = Department::all();
+
+    $spareparts = Asset::where('category', 'SPAREPART')
+                    ->whereNotNull('drone_id')
+                    ->get(['id', 'drone_id', 'sparepart_type', 'serial_number']);
+
+    return view('pwa.offline-form', compact('users', 'drones', 'locations', 'companies', 'departments', 'spareparts'));
+});
 // ------------------------------------------------------------------------
 // FALLBACK ROUTE: Penangkap Error "Route [login] not defined"
 // Jika tamu tak diundang mencoba mengakses rute yang dilindungi, 

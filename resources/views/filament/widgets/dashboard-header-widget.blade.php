@@ -2,6 +2,9 @@
     <div class="w-full p-6 flex flex-col md:flex-row items-center justify-between gap-6 border transition-all duration-300 relative overflow-hidden custom-command-wrapper">
          
         <style>
+        header.fi-header {
+                display: none !important;
+            }
             /* --- KONDISI STANDAR (MODE TERANG) --- */
             .custom-command-wrapper {
                 border-radius: 1rem !important;
@@ -37,34 +40,21 @@
             <div class="w-20 h-20 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-emerald-500/30 rounded-xl flex flex-col items-center justify-center text-center shrink-0 shadow-md p-2 select-none relative overflow-hidden">
                 
                 @php
-                    // Pintar mendeteksi: Prioritaskan logo PT (Company), jika kosong pakai logo Grup Langganan
-                    $logoPath = auth()->user()?->company?->logo_path ?? auth()->user()?->subscriptionGroup?->logo_path;
+                    $user = auth()->user();
+                    // Jadikan Logo LogDrone sebagai pertahanan terakhir (Default)
+                    $logoUrl = asset('LOGO LOGDRONE.png'); 
                     
-                    // Ambil inisial nama PT / Grup untuk dijadikan tulisan cadangan dinamis jika file logo kosong
-                    $companyName = auth()->user()?->company?->name ?? auth()->user()?->subscriptionGroup?->group_name ?? 'LOG DRONE';
-                    $words = explode(' ', str_replace(['PT.', 'pt.', 'PT', 'pt'], '', $companyName));
-                    $initials = '';
-                    foreach (array_slice($words, 0, 2) as $w) {
-                        if(!empty($w)) $initials .= strtoupper($w[0]);
+                    if ($user && $user->company && $user->company->logo_path) {
+                        $logoUrl = asset('storage/' . $user->company->logo_path);
+                    } elseif ($user && $user->subscriptionGroup && $user->subscriptionGroup->logo_path) {
+                        $logoUrl = asset('storage/' . $user->subscriptionGroup->logo_path);
                     }
-                    $initials = !empty($initials) ? $initials : 'LD';
                 @endphp
 
-                @if($logoPath && file_exists(public_path('storage/' . $logoPath)))
-                    <img src="{{ asset('storage/' . $logoPath) }}" 
-                         alt="Logo" 
-                         class="w-full h-full object-contain p-1">
-                @else
-                    <div class="flex flex-col items-center justify-center text-center w-full h-full">
-                        <span class="text-[#10b981] dark:text-[#34d399] font-[900] text-xl tracking-tighter leading-none">
-                            {{ substr($initials, 0, 2) }}
-                        </span>
-                        <span class="text-slate-400 dark:text-emerald-400/60 font-black text-[9px] tracking-widest mt-1 leading-none uppercase">
-                            FLEET
-                        </span>
-                        <div class="w-6 h-0.5 bg-[#10b981] mt-1.5 rounded-full opacity-60"></div>
-                    </div>
-                @endif
+                <img src="{{ $logoUrl }}" 
+                     alt="Logo Dashboard" 
+                     class="w-full h-full object-contain p-1">
+                     
             </div>
 
             <div class="flex flex-col min-w-0">
